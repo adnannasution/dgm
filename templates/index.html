@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Graph Manager — Neo4j Config</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #f0f4f8;
+  --surface:   #ffffff;
+  --panel:     #ffffff;
+  --border:    #e2e8f0;
+  --border2:   #cbd5e1;
+  --accent:    #2563eb;
+  --accent-lt: #eff6ff;
+  --accent2:   #7c3aed;
+  --accent2-lt:#f5f3ff;
+  --green:     #059669;
+  --green-lt:  #ecfdf5;
+  --red:       #dc2626;
+  --red-lt:    #fef2f2;
+  --yellow:    #d97706;
+  --yellow-lt: #fffbeb;
+  --text:      #0f172a;
+  --text2:     #334155;
+  --muted:     #94a3b8;
+  --mono:      'DM Mono', monospace;
+  --sans:      'Plus Jakarta Sans', sans-serif;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow:    0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.06);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+}
+
+/* ── HEADER ── */
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  position: sticky; top: 0; z-index: 100;
+  height: 60px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 2rem;
+}
+
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo-icon {
+  width: 34px; height: 34px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; color: #fff;
+  box-shadow: 0 2px 8px rgba(37,99,235,0.3);
+}
+.logo-text { font-size: 1rem; font-weight: 800; color: var(--text); letter-spacing: -0.3px; }
+.logo-text span { color: var(--accent); }
+
+.header-right { display: flex; align-items: center; gap: 10px; }
+.badge-neo {
+  font-family: var(--mono);
+  font-size: 0.7rem; font-weight: 500;
+  color: var(--accent2);
+  background: var(--accent2-lt);
+  border: 1px solid #ddd6fe;
+  padding: 4px 10px; border-radius: 20px;
+}
+
+/* ── NAV TABS ── */
+.nav-tabs {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 2rem;
+  display: flex; gap: 0;
+}
+.tab-btn {
+  padding: 14px 20px;
+  background: none; border: none;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 0.84rem; font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.18s;
+  display: flex; align-items: center; gap: 7px;
+}
+.tab-btn:hover { color: var(--text2); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ── MAIN ── */
+main {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.page { display: none; animation: fadeIn 0.2s ease; }
+.page.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── PAGE HEADER ── */
+.page-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+.page-title { font-size: 1.25rem; font-weight: 800; color: var(--text); }
+.page-subtitle { font-size: 0.82rem; color: var(--muted); margin-top: 2px; }
+
+/* ── CARD ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+}
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1.1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: #fafbfc;
+}
+.card-title {
+  font-size: 0.88rem; font-weight: 700; color: var(--text2);
+  display: flex; align-items: center; gap: 8px;
+}
+.card-title .icon {
+  width: 28px; height: 28px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+}
+.icon-blue   { background: var(--accent-lt); }
+.icon-purple { background: var(--accent2-lt); }
+.icon-green  { background: var(--green-lt); }
+.card-body { padding: 1.5rem; }
+
+/* ── BUTTONS ── */
+.btn {
+  padding: 8px 16px; border-radius: 8px; border: none;
+  font-family: var(--sans); font-size: 0.82rem; font-weight: 600;
+  cursor: pointer; transition: all 0.15s;
+  display: inline-flex; align-items: center; gap: 6px;
+  line-height: 1;
+}
+.btn-primary {
+  background: var(--accent); color: #fff;
+  box-shadow: 0 2px 6px rgba(37,99,235,0.3);
+}
+.btn-primary:hover { background: #1d4ed8; box-shadow: 0 4px 10px rgba(37,99,235,0.35); }
+.btn-ghost {
+  background: var(--bg); color: var(--text2);
+  border: 1px solid var(--border2);
+}
+.btn-ghost:hover { background: #e8edf4; }
+.btn-danger {
+  background: var(--red-lt); color: var(--red);
+  border: 1px solid #fecaca;
+}
+.btn-danger:hover { background: #fee2e2; }
+.btn-green {
+  background: var(--green-lt); color: var(--green);
+  border: 1px solid #a7f3d0;
+}
+.btn-green:hover { background: #d1fae5; }
+.btn-sm { padding: 5px 10px; font-size: 0.75rem; }
+.btn-icon { padding: 6px 8px; }
+
+/* ── FORM ── */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; }
+.form-group { display: flex; flex-direction: column; gap: 5px; }
+.form-group.full { grid-column: 1 / -1; }
+
+label {
+  font-size: 0.74rem; font-weight: 700; color: var(--text2);
+  letter-spacing: 0.3px; text-transform: uppercase;
+}
+input, select, textarea {
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  transition: all 0.15s;
+  width: 100%;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+}
+select option { background: #fff; }
+
+/* ── TABLE ── */
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.data-table thead tr { background: #f8fafc; }
+.data-table th {
+  text-align: left; padding: 11px 16px;
+  color: var(--muted); font-size: 0.72rem;
+  font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  border-bottom: 2px solid var(--border);
+}
+.data-table td {
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  color: var(--text2);
+}
+.data-table tbody tr:hover td { background: #f8fafc; }
+.data-table tbody tr:last-child td { border-bottom: none; }
+
+/* ── BADGES ── */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; border-radius: 20px;
+  font-family: var(--mono); font-size: 0.7rem; font-weight: 500;
+}
+.badge-active   { background: var(--green-lt); color: var(--green); border: 1px solid #a7f3d0; }
+.badge-inactive { background: #f1f5f9; color: var(--muted); border: 1px solid var(--border2); }
+.badge-rel      { background: var(--accent-lt); color: var(--accent); border: 1px solid #bfdbfe; }
+.badge-node     { background: var(--accent2-lt); color: var(--accent2); border: 1px solid #ddd6fe; }
+
+.mono { font-family: var(--mono); font-size: 0.78rem; color: var(--text2); }
+.mono-accent { font-family: var(--mono); font-size: 0.78rem; color: var(--accent); }
+
+.actions-row { display: flex; gap: 5px; }
+
+/* ── STAT CARDS ── */
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 1rem;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.1rem 1.25rem;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.18s;
+  cursor: default;
+}
+.stat-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 4px 16px rgba(37,99,235,0.1);
+  transform: translateY(-2px);
+}
+.stat-label { font-size: 0.7rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px; }
+.stat-value { font-family: var(--mono); font-size: 1.8rem; font-weight: 500; color: var(--accent); line-height: 1; }
+.stat-sub   { font-size: 0.72rem; color: var(--muted); margin-top: 4px; }
+
+/* ── SYNC CHIPS ── */
+.sync-chip-label {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.82rem; font-weight: 500;
+  color: var(--text2);
+  transition: all 0.15s;
+}
+.sync-chip-label:hover { border-color: var(--accent); background: var(--accent-lt); }
+.sync-chip-label input { width: auto; background: none; border: none; box-shadow: none; padding: 0; }
+
+/* ── LOG CONSOLE ── */
+.log-console {
+  background: #0f172a;
+  border-radius: 10px;
+  padding: 1.1rem 1.25rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  height: 280px;
+  overflow-y: auto;
+  line-height: 1.9;
+  color: #94a3b8;
+}
+.log-ok    { color: #34d399; }
+.log-err   { color: #f87171; }
+.log-info  { color: #60a5fa; }
+.log-muted { color: #475569; }
+.log-line  { display: block; }
+
+/* ── PROGRESS BAR ── */
+.sync-bar-wrap {
+  height: 5px; background: var(--border); border-radius: 3px; overflow: hidden;
+  margin: 1rem 0;
+}
+.sync-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 3px;
+  transition: width 0.4s;
+}
+.sync-bar.running {
+  width: 100% !important;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@keyframes shimmer { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+/* ── COL PICKER ── */
+.col-picker {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  max-height: 150px; overflow-y: auto;
+  padding: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+}
+.col-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  font-family: var(--mono); font-size: 0.72rem;
+  cursor: pointer; transition: all 0.14s;
+  color: var(--text2);
+}
+.col-chip:hover { border-color: var(--accent); color: var(--accent); }
+.col-chip.selected {
+  background: var(--accent-lt);
+  color: var(--accent);
+  border-color: #93c5fd;
+}
+
+/* ── MODAL ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; z-index: 200;
+  background: rgba(15,23,42,0.5);
+  backdrop-filter: blur(6px);
+  align-items: center; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow-lg);
+  padding: 2rem;
+  width: 660px; max-width: 95vw;
+  max-height: 92vh; overflow-y: auto;
+  animation: slideUp 0.22s ease;
+}
+@keyframes slideUp { from { opacity: 0; transform: translateY(16px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.modal-title {
+  font-size: 1rem; font-weight: 800; color: var(--text);
+  margin-bottom: 1.5rem;
+  display: flex; align-items: center; gap: 8px;
+}
+.modal-footer {
+  display: flex; justify-content: flex-end; gap: 10px;
+  margin-top: 1.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+/* ── ALERT ── */
+.alert {
+  padding: 10px 14px; border-radius: 8px; font-size: 0.82rem;
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 1rem; font-weight: 500;
+}
+.alert-success { background: var(--green-lt); color: var(--green); border: 1px solid #a7f3d0; }
+.alert-error   { background: var(--red-lt);   color: var(--red);   border: 1px solid #fecaca; }
+
+.empty-state {
+  text-align: center; padding: 3.5rem 2rem;
+  color: var(--muted);
+}
+.empty-state .big { font-size: 2.5rem; margin-bottom: 0.75rem; }
+.empty-state p { font-size: 0.85rem; }
+
+.divider { height: 1px; background: var(--border); margin: 1rem 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⬡</div>
+    <div class="logo-text">Graph<span>Manager</span></div>
+  </div>
+  <div class="header-right">
+    <span class="badge-neo">Neo4j · PostgreSQL</span>
+  </div>
+</header>
+
+<nav class="nav-tabs">
+  <button class="tab-btn active" onclick="switchTab('config', this)">⚙️ Konfigurasi Relasi</button>
+  <button class="tab-btn" onclick="switchTab('sync', this)">▶ Sync</button>
+  <button class="tab-btn" onclick="switchTab('status', this)">📊 Status Graph</button>
+</nav>
+
+<main>
+
+<!-- ══ TAB CONFIG ══════════════════════════════════════════════════════════ -->
+<div class="page active" id="tab-config">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Konfigurasi Relasi</div>
+      <div class="page-subtitle">Atur mapping tabel PostgreSQL → node & relasi Neo4j</div>
+    </div>
+    <button class="btn btn-primary" onclick="openModal()">＋ Tambah Config</button>
+  </div>
+
+  <div id="alert-config"></div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <span class="icon icon-blue">⚙️</span>
+        Daftar Config
+      </div>
+      <span id="config-count" style="font-size:0.78rem;color:var(--muted)"></span>
+    </div>
+    <div id="config-list">
+      <div class="empty-state"><div class="big">⬡</div><p>Memuat konfigurasi...</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TAB SYNC ════════════════════════════════════════════════════════════ -->
+<div class="page" id="tab-sync">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Sync ke Neo4j</div>
+      <div class="page-subtitle">Pilih config yang ingin di-sync lalu jalankan</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="selectAllSync()">Pilih Semua</button>
+      <button class="btn btn-primary" id="btn-start-sync" onclick="startSync()">▶ Mulai Sync</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title"><span class="icon icon-blue">📋</span> Pilih Config</div>
+    </div>
+    <div class="card-body">
+      <div id="sync-config-list" style="display:flex;flex-wrap:wrap;gap:8px;min-height:36px">
+        <span style="color:var(--muted);font-size:0.82rem">Memuat...</span>
+      </div>
+      <div class="sync-bar-wrap"><div class="sync-bar" id="sync-bar" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title"><span class="icon icon-blue">🖥</span> Log Output</div>
+      <button class="btn btn-ghost btn-sm" onclick="clearLog()">🗑 Clear</button>
+    </div>
+    <div class="card-body" style="padding:0">
+      <div class="log-console" id="log-console" style="border-radius:0 0 14px 14px">
+        <span class="log-muted">Belum ada sync. Pilih config dan tekan ▶ Mulai Sync.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TAB STATUS ══════════════════════════════════════════════════════════ -->
+<div class="page" id="tab-status">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Status Graph</div>
+      <div class="page-subtitle">Jumlah node & relasi yang ada di Neo4j saat ini</div>
+    </div>
+    <button class="btn btn-ghost" onclick="loadStatus()">↺ Refresh</button>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title"><span class="icon icon-purple">⬡</span> Node per Label</div>
+    </div>
+    <div class="card-body">
+      <div class="status-grid" id="node-stats">
+        <div style="color:var(--muted);font-size:0.82rem">Memuat dari Neo4j...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title"><span class="icon icon-green">↔</span> Relasi per Tipe</div>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>Tipe Relasi</th><th>Jumlah</th></tr></thead>
+      <tbody id="rel-stats">
+        <tr><td colspan="2" style="color:var(--muted);text-align:center;padding:2rem">Memuat...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+</main>
+
+<!-- ══ MODAL ════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)">
+<div class="modal">
+  <div class="modal-title">⬡ <span id="modal-title-text">Tambah Konfigurasi Relasi</span></div>
+
+  <div class="form-grid">
+    <div class="form-group full">
+      <label>Nama Config *</label>
+      <input type="text" id="f-name" placeholder="cth: ICU Monitoring → Equipment">
+    </div>
+    <div class="form-group">
+      <label>Source Table (PostgreSQL) *</label>
+      <select id="f-table" onchange="loadColumnsForForm()">
+        <option value="">— Pilih tabel —</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Kolom Link ke Equipment *</label>
+      <select id="f-src-col">
+        <option value="">— Pilih kolom —</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Target Node Label (Neo4j)</label>
+      <input type="text" id="f-target-label" value="Equipment" placeholder="Equipment">
+    </div>
+    <div class="form-group">
+      <label>Target Kolom (Neo4j)</label>
+      <input type="text" id="f-target-col" value="equipment" placeholder="equipment">
+    </div>
+    <div class="form-group">
+      <label>Tipe Relasi (Neo4j) *</label>
+      <input type="text" id="f-rel" placeholder="cth: PUNYA_ICU">
+    </div>
+    <div class="form-group">
+      <label>Node Label (Neo4j) *</label>
+      <input type="text" id="f-node-label" placeholder="cth: ICUMonitoring">
+    </div>
+    <div class="form-group full">
+      <label>Kolom → Property Node</label>
+      <div class="col-picker" id="col-picker">
+        <span style="color:var(--muted);font-size:0.75rem">Pilih tabel dulu...</span>
+      </div>
+      <div style="font-size:0.72rem;color:var(--muted);margin-top:5px">Klik kolom untuk pilih. Kolom link otomatis ikut.</div>
+    </div>
+    <div class="form-group full" style="flex-direction:row;align-items:center;gap:10px">
+      <input type="checkbox" id="f-active" checked style="width:auto;accent-color:var(--accent)">
+      <label for="f-active" style="text-transform:none;font-size:0.85rem;cursor:pointer;font-weight:500">Aktif (bisa di-sync)</label>
+    </div>
+  </div>
+
+  <div class="modal-footer">
+    <button class="btn btn-ghost" onclick="closeModal()">Batal</button>
+    <button class="btn btn-primary" onclick="saveConfig()">💾 Simpan Config</button>
+  </div>
+</div>
+</div>
+
+<script>
+let configs      = [];
+let editingId    = null;
+let allColumns   = [];
+let selectedCols = [];
+let syncInterval = null;
+let syncChecking = false;
+let selectedSyncIds = [];
+
+// ── TABS ──────────────────────────────────────────────────────────────────
+function switchTab(tab, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  btn.classList.add('active');
+  if (tab === 'status') loadStatus();
+  if (tab === 'sync')   loadSyncList();
+}
+
+// ── CONFIGS ───────────────────────────────────────────────────────────────
+async function loadConfigs() {
+  const res = await fetch('/api/configs');
+  configs   = await res.json();
+  renderConfigs();
+}
+
+function renderConfigs() {
+  const el    = document.getElementById('config-list');
+  const count = document.getElementById('config-count');
+  count.textContent = configs.length ? `${configs.length} config` : '';
+
+  if (!configs.length) {
+    el.innerHTML = `<div class="empty-state"><div class="big">⬡</div><p>Belum ada konfigurasi.<br>Klik <strong>+ Tambah Config</strong> untuk mulai.</p></div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <table class="data-table">
+      <thead><tr>
+        <th>Nama Config</th><th>Source Table</th><th>Kolom Link</th>
+        <th>Relasi</th><th>Node Label</th><th>Status</th><th>Aksi</th>
+      </tr></thead>
+      <tbody>
+        ${configs.map(c => `
+          <tr>
+            <td><strong style="color:var(--text)">${c.config_name}</strong></td>
+            <td><span class="mono">${c.source_table}</span></td>
+            <td>
+              <span class="mono-accent">${c.source_column}</span>
+              <span style="color:var(--muted);font-size:0.72rem"> → </span>
+              <span class="mono" style="color:var(--muted)">${c.target_column}</span>
+            </td>
+            <td><span class="badge badge-rel">-[${c.relation_type}]→</span></td>
+            <td><span class="badge badge-node">${c.node_label}</span></td>
+            <td><span class="badge ${c.is_active ? 'badge-active' : 'badge-inactive'}">${c.is_active ? '● Aktif' : '○ Off'}</span></td>
+            <td>
+              <div class="actions-row">
+                <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick="editConfig(${c.id})">✏️</button>
+                <button class="btn btn-ghost btn-sm btn-icon" title="${c.is_active ? 'Nonaktifkan' : 'Aktifkan'}" onclick="toggleConfig(${c.id})">${c.is_active ? '⏸' : '▶'}</button>
+                <button class="btn btn-danger btn-sm btn-icon" title="Hapus" onclick="deleteConfig(${c.id})">🗑</button>
+              </div>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+async function toggleConfig(id) {
+  await fetch(`/api/configs/${id}/toggle`, { method: 'POST' });
+  await loadConfigs();
+}
+
+async function deleteConfig(id) {
+  if (!confirm('Hapus konfigurasi ini?')) return;
+  await fetch(`/api/configs/${id}`, { method: 'DELETE' });
+  showAlert('config', '✅ Config berhasil dihapus', 'success');
+  await loadConfigs();
+}
+
+// ── MODAL ─────────────────────────────────────────────────────────────────
+async function openModal(id = null) {
+  editingId = id; selectedCols = []; allColumns = [];
+  document.getElementById('modal-title-text').textContent = id ? 'Edit Konfigurasi' : 'Tambah Konfigurasi Relasi';
+  document.getElementById('f-name').value         = '';
+  document.getElementById('f-table').value        = '';
+  document.getElementById('f-src-col').innerHTML  = '<option value="">— Pilih kolom —</option>';
+  document.getElementById('f-target-label').value = 'Equipment';
+  document.getElementById('f-target-col').value   = 'equipment';
+  document.getElementById('f-rel').value          = '';
+  document.getElementById('f-node-label').value   = '';
+  document.getElementById('f-active').checked     = true;
+  document.getElementById('col-picker').innerHTML = '<span style="color:var(--muted);font-size:0.75rem">Pilih tabel dulu...</span>';
+
+  await loadTablesForForm();
+
+  if (id) {
+    const cfg = configs.find(c => c.id === id);
+    if (cfg) {
+      document.getElementById('f-name').value         = cfg.config_name;
+      document.getElementById('f-target-label').value = cfg.target_label;
+      document.getElementById('f-target-col').value   = cfg.target_column;
+      document.getElementById('f-rel').value          = cfg.relation_type;
+      document.getElementById('f-node-label').value   = cfg.node_label;
+      document.getElementById('f-active').checked     = cfg.is_active;
+      document.getElementById('f-table').value        = cfg.source_table;
+      selectedCols = Array.isArray(cfg.node_columns) ? cfg.node_columns : [];
+      await loadColumnsForForm(cfg.source_column);
+    }
+  }
+
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+function closeModalOutside(e) { if (e.target === document.getElementById('modal-overlay')) closeModal(); }
+
+async function loadTablesForForm() {
+  const res    = await fetch('/api/tables');
+  const tables = await res.json();
+  const sel    = document.getElementById('f-table');
+  const cur    = sel.value;
+  sel.innerHTML = '<option value="">— Pilih tabel —</option>' +
+    tables.map(t => `<option value="${t}" ${t===cur?'selected':''}>${t}</option>`).join('');
+}
+
+async function loadColumnsForForm(preselectSrcCol = null) {
+  const table = document.getElementById('f-table').value;
+  if (!table) return;
+  const res  = await fetch(`/api/tables/${table}/columns`);
+  allColumns = await res.json();
+  const srcSel = document.getElementById('f-src-col');
+  srcSel.innerHTML = '<option value="">— Pilih kolom —</option>' +
+    allColumns.map(c => `<option value="${c.name}" ${c.name===preselectSrcCol?'selected':''}>${c.name} (${c.type})</option>`).join('');
+  renderColPicker();
+}
+
+function renderColPicker() {
+  const picker = document.getElementById('col-picker');
+  if (!allColumns.length) { picker.innerHTML = '<span style="color:var(--muted);font-size:0.75rem">Tidak ada kolom</span>'; return; }
+  picker.innerHTML = allColumns.map(c => `
+    <span class="col-chip ${selectedCols.includes(c.name) ? 'selected' : ''}" onclick="toggleCol('${c.name}')">
+      ${selectedCols.includes(c.name) ? '✓ ' : ''}${c.name}
+    </span>
+  `).join('');
+}
+
+function toggleCol(name) {
+  selectedCols = selectedCols.includes(name) ? selectedCols.filter(c => c !== name) : [...selectedCols, name];
+  renderColPicker();
+}
+
+async function saveConfig() {
+  const payload = {
+    config_name:   document.getElementById('f-name').value.trim(),
+    source_table:  document.getElementById('f-table').value,
+    source_column: document.getElementById('f-src-col').value,
+    target_label:  document.getElementById('f-target-label').value.trim() || 'Equipment',
+    target_column: document.getElementById('f-target-col').value.trim()   || 'equipment',
+    relation_type: document.getElementById('f-rel').value.trim().toUpperCase().replace(/\s+/g,'_'),
+    node_label:    document.getElementById('f-node-label').value.trim(),
+    node_columns:  selectedCols,
+    is_active:     document.getElementById('f-active').checked
+  };
+
+  if (!payload.config_name || !payload.source_table || !payload.source_column || !payload.relation_type || !payload.node_label) {
+    alert('Lengkapi semua field yang wajib diisi (*).'); return;
+  }
+
+  const url    = editingId ? `/api/configs/${editingId}` : '/api/configs';
+  const method = editingId ? 'PUT' : 'POST';
+  await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+  showAlert('config', editingId ? '✅ Config berhasil diupdate' : '✅ Config berhasil ditambahkan', 'success');
+  closeModal();
+  await loadConfigs();
+}
+
+function editConfig(id) { openModal(id); }
+
+// ── SYNC ──────────────────────────────────────────────────────────────────
+async function loadSyncList() {
+  const res = await fetch('/api/configs');
+  const all = await res.json();
+  const el  = document.getElementById('sync-config-list');
+  if (!all.length) { el.innerHTML = '<span style="color:var(--muted);font-size:0.82rem">Belum ada config</span>'; return; }
+  selectedSyncIds = all.filter(c => c.is_active).map(c => c.id);
+  el.innerHTML = all.map(c => `
+    <label class="sync-chip-label" id="sync-chip-${c.id}">
+      <input type="checkbox" ${c.is_active?'checked':''} onchange="toggleSyncId(${c.id}, this.checked)">
+      <span>${c.config_name}</span>
+      <span class="badge ${c.is_active?'badge-active':'badge-inactive'}" style="font-size:0.65rem">${c.is_active?'aktif':'off'}</span>
+    </label>
+  `).join('');
+}
+
+function toggleSyncId(id, checked) {
+  selectedSyncIds = checked ? [...new Set([...selectedSyncIds, id])] : selectedSyncIds.filter(x => x !== id);
+}
+
+function selectAllSync() {
+  document.querySelectorAll('#sync-config-list input[type=checkbox]').forEach(cb => { cb.checked = true; });
+  selectedSyncIds = configs.map(c => c.id);
+}
+
+async function startSync() {
+  if (!selectedSyncIds.length) { alert('Pilih minimal 1 config!'); return; }
+  await fetch('/api/sync/reset', { method: 'POST' });
+  document.getElementById('log-console').innerHTML = '<span class="log-info">🔄 Memulai sync...</span>\n';
+  document.getElementById('sync-bar').classList.add('running');
+  document.getElementById('btn-start-sync').disabled = true;
+  await fetch('/api/sync/start', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ config_ids: selectedSyncIds })
+  });
+  syncInterval = setInterval(pollSyncStatus, 1000);
+}
+
+async function pollSyncStatus() {
+  if (syncChecking) return;
+  syncChecking = true;
+  try {
+    const res  = await fetch('/api/sync/status');
+    const data = await res.json();
+    const el   = document.getElementById('log-console');
+    el.innerHTML = data.logs.map(line => {
+      let cls = 'log-muted';
+      if (line.startsWith('✅') || line.startsWith('🎉')) cls = 'log-ok';
+      else if (line.startsWith('❌') || line.startsWith('⚠️')) cls = 'log-err';
+      else if (line.startsWith('🔄') || line.startsWith('→') || line.startsWith('  →')) cls = 'log-info';
+      return `<span class="log-line ${cls}">${line}</span>`;
+    }).join('\n');
+    el.scrollTop = el.scrollHeight;
+    if (data.done) {
+      clearInterval(syncInterval);
+      document.getElementById('sync-bar').classList.remove('running');
+      document.getElementById('sync-bar').style.width = '100%';
+      document.getElementById('btn-start-sync').disabled = false;
+      el.innerHTML += data.error
+        ? `\n<span class="log-line log-err">❌ Fatal: ${data.error}</span>`
+        : `\n<span class="log-line log-ok">🎉 Sync selesai!</span>`;
+    }
+  } finally { syncChecking = false; }
+}
+
+function clearLog() {
+  document.getElementById('log-console').innerHTML = '<span class="log-muted">Log dibersihkan.</span>';
+}
+
+// ── STATUS ────────────────────────────────────────────────────────────────
+async function loadStatus() {
+  document.getElementById('node-stats').innerHTML = '<div style="color:var(--muted);font-size:0.82rem">Memuat dari Neo4j...</div>';
+  document.getElementById('rel-stats').innerHTML  = '<tr><td colspan="2" style="color:var(--muted);text-align:center;padding:2rem">Memuat...</td></tr>';
+  try {
+    const res  = await fetch('/api/neo4j/status');
+    const data = await res.json();
+    if (data.error) {
+      document.getElementById('node-stats').innerHTML = `<div style="color:var(--red);font-size:0.82rem">❌ ${data.error}</div>`;
+      return;
+    }
+    document.getElementById('node-stats').innerHTML = data.nodes.length
+      ? data.nodes.map(n => `
+          <div class="stat-card">
+            <div class="stat-label">${n.label}</div>
+            <div class="stat-value">${n.count.toLocaleString('id-ID')}</div>
+            <div class="stat-sub">node</div>
+          </div>`).join('')
+      : '<div style="color:var(--muted);font-size:0.82rem">Belum ada node</div>';
+
+    document.getElementById('rel-stats').innerHTML = data.relations.length
+      ? data.relations.map(r => `
+          <tr>
+            <td><span class="badge badge-rel">-[${r.type}]→</span></td>
+            <td><span class="mono-accent">${r.count.toLocaleString('id-ID')}</span></td>
+          </tr>`).join('')
+      : '<tr><td colspan="2" style="color:var(--muted);text-align:center;padding:2rem">Belum ada relasi</td></tr>';
+  } catch(e) {
+    document.getElementById('node-stats').innerHTML = `<div style="color:var(--red);font-size:0.82rem">❌ Gagal konek ke Neo4j</div>`;
+  }
+}
+
+// ── ALERT ─────────────────────────────────────────────────────────────────
+function showAlert(section, msg, type) {
+  const el = document.getElementById(`alert-${section}`);
+  if (!el) return;
+  el.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+  setTimeout(() => { el.innerHTML = ''; }, 3500);
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+loadConfigs();
+</script>
+</body>
+</html>

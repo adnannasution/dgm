@@ -226,23 +226,26 @@ def viz_graph():
 
             nodes = list(nodes_map.values())
 
-            # Kalau tidak ada relasi (node isolated), tambahkan node tanpa relasi
-            if not nodes:
-                per_label = max(5, limit // max(len(active_labels), 1))
-                for label in active_labels:
-                    if label not in label_colors:
-                        continue
+            # Tambahkan node isolated per label yang aktif (supaya semua label muncul)
+            per_label = max(5, limit // max(len(active_labels), 1))
+            for label in active_labels:
+                if label not in label_colors:
+                    continue
+                existing = sum(1 for n in nodes if n["label"] == label)
+                if existing < per_label:
                     res2 = session.run(
                         f"MATCH (n:`{label}`) RETURN n, id(n) AS nid LIMIT $lim",
-                        lim=per_label
+                        lim=per_label - existing
                     )
                     for row in res2:
-                        nid  = row["nid"]
+                        nid = row["nid"]
                         if nid not in nodes_map:
                             props = dict(row["n"])
                             did   = make_display_id(props, nid)
-                            nodes.append({"id": did, "nid": nid, "label": label,
-                                         "color": label_colors[label], "props": props})
+                            node_obj = {"id": did, "nid": nid, "label": label,
+                                        "color": label_colors[label], "props": props}
+                            nodes.append(node_obj)
+                            nodes_map[nid] = node_obj
 
         neo.close()
         return jsonify({"nodes": nodes, "links": links, "label_colors": label_colors})

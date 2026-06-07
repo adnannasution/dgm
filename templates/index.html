@@ -1058,9 +1058,21 @@ function renderViz() {
   // zoom
   d3svg.call(d3.zoom().scaleExtent([0.2, 4]).on('zoom', e => g.attr('transform', e.transform)));
 
-  const linkSel = g.append('g').selectAll('line').data(links).join('line')
-    .attr('stroke','#e2e8f0').attr('stroke-width', 1.2)
+  // link group (line + label)
+  const linkG = g.append('g').selectAll('g').data(links).join('g');
+
+  const linkSel = linkG.append('line')
+    .attr('stroke','#cbd5e1').attr('stroke-width', 1.5)
     .attr('marker-end','url(#viz-arrow)');
+
+  const linkLabel = linkG.append('text')
+    .text(d => d.type || '')
+    .attr('text-anchor','middle')
+    .attr('font-size', 8)
+    .attr('fill','#94a3b8')
+    .attr('dy', -4)
+    .style('pointer-events','none')
+    .style('user-select','none');
 
   const nodeGroup = g.append('g').selectAll('g').data(nodes).join('g')
     .style('cursor','pointer')
@@ -1091,6 +1103,7 @@ function renderViz() {
       .on('tick', () => {
         linkSel.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
                .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+        linkLabel.attr('x',d=>(d.source.x+d.target.x)/2).attr('y',d=>(d.source.y+d.target.y)/2);
         nodeGroup.attr('transform',d=>`translate(${d.x},${d.y})`);
       });
   } else {
@@ -1115,6 +1128,7 @@ function renderViz() {
       .on('tick', () => {
         linkSel.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
                .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+        linkLabel.attr('x',d=>(d.source.x+d.target.x)/2).attr('y',d=>(d.source.y+d.target.y)/2);
         nodeGroup.attr('transform',d=>`translate(${d.x},${d.y})`);
       });
   }

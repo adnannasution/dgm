@@ -62,17 +62,16 @@ class SyncEngine:
             WHERE "{source_column}" IS NOT NULL AND CAST("{source_column}" AS TEXT) != ''
         """
 
-        set_clauses = "\n".join([
-            f'n.{col} = row.{col}' for col in all_cols if col != source_column
-        ])
+        prop_cols = [col for col in all_cols if col != source_column]
+        set_clauses = ", ".join([f'n.`{col}` = row.`{col}`' for col in prop_cols])
 
-        cypher = f"""
-            UNWIND $rows AS row
-            MERGE (target:{target_label} {{{target_column}: row.{source_column}}})
-            MERGE (n:{node_label} {{{source_column}: row.{source_column}}})
-            {'SET ' + set_clauses if set_clauses else ''}
-            MERGE (target)-[:{relation_type}]->(n)
-        """
+        cypher = (
+            f"UNWIND $rows AS row "
+            f"MERGE (target:`{target_label}` {{{target_column}: row.`{source_column}`}}) "
+            f"MERGE (n:`{node_label}` {{`{source_column}`: row.`{source_column}`}}) "
+            + (f"SET {set_clauses} " if set_clauses else "")
+            + f"MERGE (target)-[:`{relation_type}`]->(n)"
+        )
 
         total  = 0
         offset = 0

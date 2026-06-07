@@ -384,6 +384,26 @@ select option { background: #fff; }
 .empty-state p { font-size: 0.85rem; }
 
 .divider { height: 1px; background: var(--border); margin: 1rem 0; }
+
+/* ── VIZ ─────────────────────────────────────────────────────────────────── */
+.viz-toggle {
+  flex:1; padding:7px 8px; border-radius:6px; border:none;
+  font-family:var(--sans); font-size:0.75rem; font-weight:600;
+  cursor:pointer; transition:all 0.15s;
+  color:var(--muted); background:transparent;
+}
+.viz-toggle.active {
+  background:var(--surface); color:var(--accent);
+  box-shadow:0 1px 4px rgba(0,0,0,0.08);
+}
+.viz-label-chip {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:6px 10px; border-radius:7px;
+  border:1px solid var(--border); background:var(--bg);
+  font-size:0.75rem; cursor:pointer; transition:all 0.15s; user-select:none;
+}
+.viz-label-chip.active { border-color:#93c5fd; background:var(--accent-lt); }
+.viz-label-chip:hover { border-color:var(--accent); }
 </style>
 </head>
 <body>
@@ -402,6 +422,7 @@ select option { background: #fff; }
   <button class="tab-btn active" onclick="switchTab('config', this)">⚙️ Konfigurasi Relasi</button>
   <button class="tab-btn" onclick="switchTab('sync', this)">▶ Sync</button>
   <button class="tab-btn" onclick="switchTab('status', this)">📊 Status Graph</button>
+  <button class="tab-btn" onclick="switchTab('viz', this)">🕸 Visualisasi</button>
 </nav>
 
 <main>
@@ -504,6 +525,86 @@ select option { background: #fff; }
   </div>
 </div>
 
+
+<!-- ══ TAB VIZ ════════════════════════════════════════════════════════════ -->
+<div class="page" id="tab-viz">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Visualisasi Graph</div>
+      <div class="page-subtitle">Eksplorasi node dan relasi secara interaktif</div>
+    </div>
+    <button class="btn btn-ghost" onclick="refreshViz()">↺ Refresh</button>
+  </div>
+
+  <div style="display:flex;gap:1.25rem;align-items:flex-start">
+
+    <!-- sidebar -->
+    <div style="width:220px;min-width:220px;display:flex;flex-direction:column;gap:1rem">
+
+      <div class="card" style="padding:1.1rem">
+        <div style="font-size:0.74rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:8px">Mode Tampilan</div>
+        <div style="display:flex;gap:4px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:3px">
+          <button id="viz-mode-force" class="viz-toggle active" onclick="setVizMode('force')">⚛ Force</button>
+          <button id="viz-mode-hier" class="viz-toggle" onclick="setVizMode('hierarchy')">🌲 Hirarki</button>
+        </div>
+      </div>
+
+      <div class="card" style="padding:1.1rem">
+        <div style="font-size:0.74rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:8px">Filter Label</div>
+        <div id="viz-label-filter" style="display:flex;flex-direction:column;gap:5px">
+          <div style="color:var(--muted);font-size:0.78rem">Memuat...</div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:1.1rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="font-size:0.74rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.3px">Sample Node</div>
+          <span id="viz-sample-val" style="font-size:0.82rem;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums">75</span>
+        </div>
+        <input type="range" id="viz-sample" min="10" max="150" value="75"
+          oninput="document.getElementById('viz-sample-val').textContent=this.value"
+          style="width:100%;accent-color:var(--accent)">
+        <div style="display:flex;justify-content:space-between;margin-top:3px">
+          <span style="font-size:0.65rem;color:var(--muted)">10</span>
+          <span style="font-size:0.65rem;color:var(--muted)">150</span>
+        </div>
+      </div>
+
+      <div class="card" style="padding:1.1rem">
+        <div style="font-size:0.74rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:8px">Info</div>
+        <div style="display:flex;flex-direction:column;gap:4px;font-size:0.78rem;color:var(--text2)">
+          <div style="display:flex;justify-content:space-between"><span>Node tampil</span><span id="viz-info-nodes" style="font-weight:700;color:var(--accent)">—</span></div>
+          <div style="display:flex;justify-content:space-between"><span>Relasi</span><span id="viz-info-links" style="font-weight:700;color:var(--accent)">—</span></div>
+          <div style="display:flex;justify-content:space-between"><span>Label aktif</span><span id="viz-info-labels" style="font-weight:700;color:var(--accent)">—</span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- canvas -->
+    <div class="card" style="flex:1;padding:0;overflow:hidden;position:relative;min-height:540px">
+      <div id="viz-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--surface);z-index:10;border-radius:14px">
+        <div style="text-align:center;color:var(--muted)">
+          <div style="font-size:2rem;margin-bottom:8px">⬡</div>
+          <div style="font-size:0.85rem">Klik Refresh untuk load graph</div>
+        </div>
+      </div>
+      <svg id="viz-svg" style="width:100%;height:540px;display:block"></svg>
+
+      <!-- tooltip -->
+      <div id="viz-tooltip" style="display:none;position:absolute;background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:12px 14px;width:200px;box-shadow:0 4px 20px rgba(0,0,0,0.1);pointer-events:none;z-index:20">
+        <div id="viz-tt-header" style="display:flex;align-items:center;gap:7px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+          <div id="viz-tt-dot" style="width:10px;height:10px;border-radius:50%;background:var(--accent)"></div>
+          <span id="viz-tt-id" style="font-size:0.78rem;font-weight:700;color:var(--text)"></span>
+          <span id="viz-tt-label" style="font-size:0.65rem;color:var(--accent2);background:var(--accent2-lt);padding:2px 6px;border-radius:10px"></span>
+        </div>
+        <div id="viz-tt-props" style="display:flex;flex-direction:column;gap:5px;font-size:0.72rem;max-height:180px;overflow-y:auto"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
 </main>
 
 <!-- ══ MODAL ════════════════════════════════════════════════════════════════ -->
@@ -581,6 +682,7 @@ function switchTab(tab, btn) {
   btn.classList.add('active');
   if (tab === 'status') loadStatus();
   if (tab === 'sync')   loadSyncList();
+  if (tab === 'viz')    initViz();
 }
 
 // ── CONFIGS ───────────────────────────────────────────────────────────────
@@ -853,8 +955,213 @@ function showAlert(section, msg, type) {
   setTimeout(() => { el.innerHTML = ''; }, 3500);
 }
 
+
+// ── VISUALISASI ─────────────────────────────────────────────────────────────
+const VIZ_COLORS = [
+  '#2563eb','#7c3aed','#059669','#d97706',
+  '#dc2626','#0891b2','#be185d','#65a30d'
+];
+let vizMode        = 'force';
+let vizActiveLabels = {};
+let vizSimulation  = null;
+let vizData        = { nodes: [], links: [] };
+
+function setVizMode(mode) {
+  vizMode = mode;
+  document.getElementById('viz-mode-force').classList.toggle('active', mode === 'force');
+  document.getElementById('viz-mode-hier').classList.toggle('active', mode === 'hierarchy');
+  if (vizData.nodes.length) renderViz();
+}
+
+async function initViz() {
+  const loading = document.getElementById('viz-loading');
+  loading.style.display = 'flex';
+}
+
+async function refreshViz() {
+  const loading = document.getElementById('viz-loading');
+  loading.innerHTML = '<div style="text-align:center;color:var(--muted)"><div class="spin" style="font-size:1.5rem">⬡</div><div style="font-size:0.82rem;margin-top:8px">Memuat dari Neo4j...</div></div>';
+  loading.style.display = 'flex';
+
+  const sample = parseInt(document.getElementById('viz-sample').value);
+  const activeLabels = Object.keys(vizActiveLabels).filter(l => vizActiveLabels[l]);
+
+  try {
+    const res  = await fetch(`/api/viz/graph?limit=${sample}&labels=${activeLabels.join(',')}`);
+    const data = await res.json();
+    if (data.error) { loading.innerHTML = `<div style="color:var(--red)">${data.error}</div>`; return; }
+    vizData = data;
+    renderLabelFilter(data.label_colors);
+    renderViz();
+    loading.style.display = 'none';
+    document.getElementById('viz-info-nodes').textContent  = data.nodes.length;
+    document.getElementById('viz-info-links').textContent  = data.links.length;
+    document.getElementById('viz-info-labels').textContent = Object.keys(data.label_colors).length;
+  } catch(e) {
+    loading.innerHTML = `<div style="color:var(--red);text-align:center;padding:2rem">❌ Gagal load graph</div>`;
+  }
+}
+
+function renderLabelFilter(labelColors) {
+  const el = document.getElementById('viz-label-filter');
+  const entries = Object.entries(labelColors);
+  // init active state
+  entries.forEach(([l]) => { if (vizActiveLabels[l] === undefined) vizActiveLabels[l] = true; });
+  el.innerHTML = entries.map(([label, color]) => `
+    <div class="viz-label-chip ${vizActiveLabels[label] ? 'active' : ''}" onclick="toggleVizLabel('${label}')">
+      <div style="display:flex;align-items:center;gap:7px">
+        <div style="width:9px;height:9px;border-radius:50%;background:${color}"></div>
+        <span style="font-weight:600;color:var(--text)">${label}</span>
+      </div>
+      <span style="font-size:0.68rem;color:var(--muted)">${vizData.nodes.filter(n=>n.label===label).length}</span>
+    </div>
+  `).join('');
+}
+
+function toggleVizLabel(label) {
+  vizActiveLabels[label] = !vizActiveLabels[label];
+  document.querySelectorAll('#viz-label-filter .viz-label-chip').forEach((el, i) => {
+    const l = Object.keys(vizActiveLabels)[i];
+    el.classList.toggle('active', vizActiveLabels[l]);
+  });
+  renderViz();
+}
+
+function renderViz() {
+  if (vizSimulation) vizSimulation.stop();
+  const svg = document.getElementById('viz-svg');
+  svg.innerHTML = '';
+  const W = svg.clientWidth || 700;
+  const H = svg.clientHeight || 540;
+
+  const activeLabels = new Set(Object.keys(vizActiveLabels).filter(l => vizActiveLabels[l]));
+  const nodes = vizData.nodes.filter(n => activeLabels.has(n.label)).map(n => ({...n}));
+  const nodeIds = new Set(nodes.map(n => n.id));
+  const links = vizData.links.filter(l => nodeIds.has(l.source) && nodeIds.has(l.target))
+    .map(l => ({...l}));
+
+  document.getElementById('viz-info-nodes').textContent = nodes.length;
+  document.getElementById('viz-info-links').textContent = links.length;
+
+  const d3svg = d3.select(svg);
+
+  // defs arrow
+  d3svg.append('defs').append('marker')
+    .attr('id','viz-arrow').attr('viewBox','0 -4 8 8')
+    .attr('refX', 20).attr('refY', 0)
+    .attr('markerWidth', 5).attr('markerHeight', 5)
+    .attr('orient', 'auto')
+    .append('path').attr('d','M0,-4L8,0L0,4').attr('fill','#cbd5e1');
+
+  const g = d3svg.append('g');
+
+  // zoom
+  d3svg.call(d3.zoom().scaleExtent([0.2, 4]).on('zoom', e => g.attr('transform', e.transform)));
+
+  const linkSel = g.append('g').selectAll('line').data(links).join('line')
+    .attr('stroke','#e2e8f0').attr('stroke-width', 1.2)
+    .attr('marker-end','url(#viz-arrow)');
+
+  const nodeGroup = g.append('g').selectAll('g').data(nodes).join('g')
+    .style('cursor','pointer')
+    .call(d3.drag()
+      .on('start', (e, d) => { if (!e.active) vizSimulation.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+      .on('drag',  (e, d) => { d.fx=e.x; d.fy=e.y; })
+      .on('end',   (e, d) => { if (!e.active) vizSimulation.alphaTarget(0); d.fx=null; d.fy=null; }))
+    .on('click', (e, d) => showTooltip(e, d));
+
+  nodeGroup.append('circle')
+    .attr('r', d => d.label === 'Equipment' ? 11 : 8)
+    .attr('fill', d => d.color)
+    .attr('fill-opacity', 0.85)
+    .attr('stroke','#fff').attr('stroke-width', 2);
+
+  nodeGroup.append('text')
+    .text(d => d.id.length > 10 ? d.id.slice(0,10)+'…' : d.id)
+    .attr('text-anchor','middle').attr('dy', 22)
+    .attr('font-size', 9).attr('fill','var(--muted)')
+    .style('pointer-events','none');
+
+  if (vizMode === 'force') {
+    vizSimulation = d3.forceSimulation(nodes)
+      .force('link', d3.forceLink(links).id(d=>d.id).distance(70).strength(0.4))
+      .force('charge', d3.forceManyBody().strength(-180))
+      .force('center', d3.forceCenter(W/2, H/2))
+      .force('collision', d3.forceCollide(d => d.label==='Equipment'?16:12))
+      .on('tick', () => {
+        linkSel.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
+               .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+        nodeGroup.attr('transform',d=>`translate(${d.x},${d.y})`);
+      });
+  } else {
+    // Hierarchy: Equipment center, others radiate
+    const eqNodes  = nodes.filter(n => n.label==='Equipment');
+    const othNodes = nodes.filter(n => n.label!=='Equipment');
+    const cx=W/2, cy=H/2;
+    eqNodes.forEach((n,i) => {
+      const angle = (i/eqNodes.length)*2*Math.PI;
+      const r = Math.min(W,H)*0.22;
+      n.x=cx+r*Math.cos(angle); n.y=cy+r*Math.sin(angle); n.fx=n.x; n.fy=n.y;
+    });
+    othNodes.forEach((n,i) => {
+      const angle = (i/othNodes.length)*2*Math.PI;
+      const r = Math.min(W,H)*0.42;
+      n.x=cx+r*Math.cos(angle); n.y=cy+r*Math.sin(angle);
+    });
+    vizSimulation = d3.forceSimulation(nodes)
+      .force('link', d3.forceLink(links).id(d=>d.id).distance(80).strength(0.6))
+      .force('charge', d3.forceManyBody().strength(-80))
+      .force('collision', d3.forceCollide(14))
+      .on('tick', () => {
+        linkSel.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
+               .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+        nodeGroup.attr('transform',d=>`translate(${d.x},${d.y})`);
+      });
+  }
+
+  // click outside hide tooltip
+  d3svg.on('click', (e) => { if (e.target === svg) hideTooltip(); });
+}
+
+function showTooltip(event, d) {
+  const tt     = document.getElementById('viz-tooltip');
+  const canvas = document.getElementById('viz-svg').getBoundingClientRect();
+  const svgEl  = document.getElementById('viz-svg');
+  const svgRect = svgEl.getBoundingClientRect();
+  const x = event.clientX - svgRect.left + 12;
+  const y = event.clientY - svgRect.top  + 12;
+
+  document.getElementById('viz-tt-dot').style.background   = d.color;
+  document.getElementById('viz-tt-id').textContent         = d.id;
+  document.getElementById('viz-tt-label').textContent      = d.label;
+  document.getElementById('viz-tt-label').style.color      = d.color;
+  document.getElementById('viz-tt-label').style.background = d.color + '20';
+
+  const propsEl = document.getElementById('viz-tt-props');
+  const skip = new Set(['id','label','color']);
+  propsEl.innerHTML = Object.entries(d.props || {})
+    .filter(([k,v]) => !skip.has(k) && v)
+    .slice(0,8)
+    .map(([k,v]) => `
+      <div>
+        <div style="color:var(--muted);text-transform:uppercase;font-size:0.62rem;letter-spacing:0.3px">${k}</div>
+        <div style="color:var(--text);font-weight:500;word-break:break-all">${String(v).slice(0,60)}</div>
+      </div>
+    `).join('');
+
+  tt.style.display = 'block';
+  tt.style.left    = Math.min(x, svgEl.clientWidth - 220) + 'px';
+  tt.style.top     = Math.min(y, svgEl.clientHeight - 260) + 'px';
+  event.stopPropagation();
+}
+
+function hideTooltip() {
+  document.getElementById('viz-tooltip').style.display = 'none';
+}
+
 // ── INIT ──────────────────────────────────────────────────────────────────
 loadConfigs();
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 </body>
 </html>

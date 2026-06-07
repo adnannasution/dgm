@@ -146,6 +146,76 @@ def neo4j_status():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+@app.route("/api/viz/graph", methods=["GET"])
+def viz_graph():
+    limit  = int(request.args.get("limit", 75))
+    labels_param = request.args.get("labels", "")
+    filter_labels = [l.strip() for l in labels_param.split(",") if l.strip()]
+
+    VIZ_COLORS = [
+        "#2563eb","#7c3aed","#059669","#d97706",
+        "#dc2626","#0891b2","#be185d","#65a30d"
+    ]
+
+    try:
+        neo = get_neo()
+        with neo.session() as session:
+            # Get all labels
+            all_labels = [r["label"] for r in session.run("CALL db.labels() YIELD label RETURN label")]
+            label_colors = {l: VIZ_COLORS[i % len(VIZ_COLORS)] for i, l in enumerate(all_labels)}
+
+            # Determine which labels to show
+            active_labels = filter_labels if filter_labels else all_labels
+
+            nodes = []
+            node_ids = set()
+            for label in active_labels:
+                if label not in label_colors:
+                    continue
+                per_label = max(5, limit // len(active_labels))
+                result = session.run(
+                    f"MATCH (n:{label}) RETURN n LIMIT $lim",
+                    lim=per_label
+                )
+                for r in result:
+                    n = r["n"]
+                    node_id = list(n.values())[0] if n.values() else str(n.id)
+                    if node_id not in node_ids:
+                        node_ids.add(node_id)
+                        nodes.append({
+                            "id":    str(node_id),
+                            "label": label,
+                            "color": label_colors[label],
+                            "props": dict(n)
+                        })
+
+            # Get relationships between visible nodes
+            node_id_list = list(node_ids)
+            links = []
+            if len(node_id_list) > 1:
+                result = session.run("""
+                    MATCH (a)-[r]->(b)
+                    WHERE any(x IN keys(a) WHERE toString(a[x]) IN $ids)
+                      AND any(x IN keys(b) WHERE toString(b[x]) IN $ids)
+                    RETURN
+                        toString(head([x IN keys(a) | a[x]])) AS src,
+                        toString(head([x IN keys(b) | b[x]])) AS tgt,
+                        type(r) AS rel_type
+                    LIMIT 300
+                """, ids=[str(x) for x in node_id_list])
+                seen_links = set()
+                for r in result:
+                    key = (r["src"], r["tgt"])
+                    if key not in seen_links and r["src"] in node_ids and r["tgt"] in node_ids:
+                        seen_links.add(key)
+                        links.append({"source": r["src"], "target": r["tgt"], "type": r["rel_type"]})
+
+        neo.close()
+        return jsonify({"nodes": nodes, "links": links, "label_colors": label_colors})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/api/sync/start", methods=["POST"])
 def start_sync():
     global sync_state
@@ -181,9 +251,7 @@ def sync_reset():
         sync_state = {"running": False, "logs": [], "done": False, "error": None}
     return jsonify({"message": "Reset OK"})
 
-with app.app_context():
-    init_config_table()
-
 if __name__ == "__main__":
+    init_config_table()
     port = int(os.getenv("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)

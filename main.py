@@ -149,7 +149,7 @@ def neo4j_status():
 
 @app.route("/api/viz/graph", methods=["GET"])
 def viz_graph():
-    limit  = int(request.args.get("limit", 75))
+    limit        = int(request.args.get("limit", 75))
     labels_param = request.args.get("labels", "")
     filter_labels = [l.strip() for l in labels_param.split(",") if l.strip()]
 
@@ -161,55 +161,62 @@ def viz_graph():
     try:
         neo = get_neo()
         with neo.session() as session:
-            # Get all labels
-            all_labels = [r["label"] for r in session.run("CALL db.labels() YIELD label RETURN label")]
+            # semua label
+            all_labels   = [r["label"] for r in session.run("CALL db.labels() YIELD label RETURN label")]
             label_colors = {l: VIZ_COLORS[i % len(VIZ_COLORS)] for i, l in enumerate(all_labels)}
-
-            # Determine which labels to show
             active_labels = filter_labels if filter_labels else all_labels
 
-            nodes = []
-            node_ids = set()
+            # fetch nodes per label, simpan neo4j elementId
+            nodes       = []
+            elem_id_map = {}   # elementId -> node dict (untuk link lookup)
+            per_label   = max(5, limit // max(len(active_labels), 1))
+
             for label in active_labels:
                 if label not in label_colors:
                     continue
-                per_label = max(5, limit // len(active_labels))
                 result = session.run(
-                    f"MATCH (n:{label}) RETURN n LIMIT $lim",
+                    f"MATCH (n:`{label}`) RETURN n, elementId(n) AS eid LIMIT $lim",
                     lim=per_label
                 )
                 for r in result:
-                    n = r["n"]
-                    node_id = list(n.values())[0] if n.values() else str(n.id)
-                    if node_id not in node_ids:
-                        node_ids.add(node_id)
-                        nodes.append({
-                            "id":    str(node_id),
-                            "label": label,
-                            "color": label_colors[label],
-                            "props": dict(n)
-                        })
+                    n    = r["n"]
+                    eid  = r["eid"]
+                    props = dict(n)
+                    # pakai nilai pertama sebagai display id
+                    display_id = str(list(props.values())[0]) if props else eid
+                    node_obj = {
+                        "id":    display_id,
+                        "eid":   eid,
+                        "label": label,
+                        "color": label_colors[label],
+                        "props": props
+                    }
+                    nodes.append(node_obj)
+                    elem_id_map[eid] = node_obj
 
-            # Get relationships between visible nodes
-            node_id_list = list(node_ids)
-            links = []
-            if len(node_id_list) > 1:
+            # fetch relasi antar node yang sudah diambil
+            eid_list = list(elem_id_map.keys())
+            links    = []
+            if len(eid_list) > 1:
                 result = session.run("""
                     MATCH (a)-[r]->(b)
-                    WHERE any(x IN keys(a) WHERE toString(a[x]) IN $ids)
-                      AND any(x IN keys(b) WHERE toString(b[x]) IN $ids)
-                    RETURN
-                        toString(head([x IN keys(a) | a[x]])) AS src,
-                        toString(head([x IN keys(b) | b[x]])) AS tgt,
-                        type(r) AS rel_type
-                    LIMIT 300
-                """, ids=[str(x) for x in node_id_list])
-                seen_links = set()
+                    WHERE elementId(a) IN $eids AND elementId(b) IN $eids
+                    RETURN elementId(a) AS src_eid, elementId(b) AS tgt_eid, type(r) AS rel_type
+                    LIMIT 500
+                """, eids=eid_list)
+                seen = set()
                 for r in result:
-                    key = (r["src"], r["tgt"])
-                    if key not in seen_links and r["src"] in node_ids and r["tgt"] in node_ids:
-                        seen_links.add(key)
-                        links.append({"source": r["src"], "target": r["tgt"], "type": r["rel_type"]})
+                    src_node = elem_id_map.get(r["src_eid"])
+                    tgt_node = elem_id_map.get(r["tgt_eid"])
+                    if src_node and tgt_node:
+                        key = (src_node["id"], tgt_node["id"])
+                        if key not in seen:
+                            seen.add(key)
+                            links.append({
+                                "source": src_node["id"],
+                                "target": tgt_node["id"],
+                                "type":   r["rel_type"]
+                            })
 
         neo.close()
         return jsonify({"nodes": nodes, "links": links, "label_colors": label_colors})

@@ -1,10 +1,10 @@
 import json
-import psycopg2.extras
+from psycopg.rows import dict_row
 
 class SyncEngine:
     def __init__(self, pg_conn, neo_driver, state):
-        self.pg  = pg_conn
-        self.neo = neo_driver
+        self.pg    = pg_conn
+        self.neo   = neo_driver
         self.state = state
 
     def log(self, msg):
@@ -12,24 +12,25 @@ class SyncEngine:
         self.state["logs"].append(msg)
 
     def run(self, config_ids=None):
-        cur = self.pg.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
         if config_ids:
-            cur.execute(
+            rows = self.pg.execute(
                 "SELECT * FROM graph_relation_config WHERE id = ANY(%s) AND is_active = TRUE",
                 (config_ids,)
-            )
+            ).fetchall()
         else:
-            cur.execute("SELECT * FROM graph_relation_config WHERE is_active = TRUE")
+            rows = self.pg.execute(
+                "SELECT * FROM graph_relation_config WHERE is_active = TRUE"
+            ).fetchall()
 
-        configs = cur.fetchall()
-        cur.close()
+        # Convert ke dict manual (kolom dari information_schema)
+        col_names = ["id","config_name","source_table","source_column","target_label",
+                     "target_column","relation_type","node_label","node_columns","is_active","created_at"]
+        configs = [dict(zip(col_names, r)) for r in rows]
 
         if not configs:
             self.log("⚠️ Tidak ada config aktif yang ditemukan.")
             return
 
-        # Buat index Neo4j untuk Equipment dulu
         with self.neo.session() as session:
             session.run("CREATE INDEX eq_idx IF NOT EXISTS FOR (e:Equipment) ON (e.equipment)")
 
@@ -43,57 +44,51 @@ class SyncEngine:
 
     def _sync_one(self, cfg, batch_size=500):
         source_table  = cfg["source_table"]
-        source_column = cfg["source_column"]   # kolom penghubung ke Equipment
-        target_label  = cfg["target_label"]    # biasanya "Equipment"
-        target_column = cfg["target_column"]   # biasanya "equipment"
-        relation_type = cfg["relation_type"]   # misal "PUNYA_ICU"
-        node_label    = cfg["node_label"]      # misal "ICUMonitoring"
-        node_columns  = cfg["node_columns"]    # list kolom yang jadi property node
+        source_column = cfg["source_column"]
+        target_label  = cfg["target_label"]
+        target_column = cfg["target_column"]
+        relation_type = cfg["relation_type"]
+        node_label    = cfg["node_label"]
+        node_columns  = cfg["node_columns"] or []
 
-        # Ambil semua kolom yang akan di-select
-        all_cols = list(node_columns) if node_columns else []
+        all_cols = list(node_columns)
         if source_column not in all_cols:
             all_cols = [source_column] + all_cols
 
-        # Buat query SELECT dinamis
         safe_cols = [f'CAST("{c}" AS TEXT) AS "{c}"' for c in all_cols]
         query = f"""
             SELECT {', '.join(safe_cols)}
             FROM "{source_table}"
-            WHERE "{source_column}" IS NOT NULL AND "{source_column}" != ''
+            WHERE "{source_column}" IS NOT NULL AND CAST("{source_column}" AS TEXT) != ''
         """
 
-        cur = self.pg.cursor(cursor_factory=psycopg2.extras.RealDictCursor, name=f"cur_{source_table}")
-        cur.execute(query)
+        set_clauses = "\n".join([
+            f'n.{col} = row.{col}' for col in all_cols if col != source_column
+        ])
 
-        total = 0
+        cypher = f"""
+            UNWIND $rows AS row
+            MERGE (target:{target_label} {{{target_column}: row.{source_column}}})
+            MERGE (n:{node_label} {{{source_column}: row.{source_column}}})
+            {'SET ' + set_clauses if set_clauses else ''}
+            MERGE (target)-[:{relation_type}]->(n)
+        """
+
+        total  = 0
+        offset = 0
         while True:
-            rows = cur.fetchmany(batch_size)
-            if not rows:
+            batch = self.pg.execute(query + f" LIMIT {batch_size} OFFSET {offset}").fetchall()
+            if not batch:
                 break
 
-            rows_data = [dict(r) for r in rows]
-
-            # Buat Cypher dinamis
-            set_clauses = "\n".join([
-                f'n.{col} = row.{col}'
-                for col in all_cols if col != source_column
-            ])
-
-            # Unique key untuk node: source_column value
-            cypher = f"""
-                UNWIND $rows AS row
-                MERGE (target:{target_label} {{{target_column}: row.{source_column}}})
-                MERGE (n:{node_label} {{{source_column}: row.{source_column}}})
-                {'SET ' + set_clauses if set_clauses else ''}
-                MERGE (target)-[:{relation_type}]->(n)
-            """
+            col_names = all_cols
+            rows_data = [dict(zip(col_names, r)) for r in batch]
 
             with self.neo.session() as session:
                 session.run(cypher, rows=rows_data)
 
-            total += len(rows)
+            total  += len(batch)
+            offset += batch_size
             self.log(f"  → {total} record diproses...")
 
-        cur.close()
         self.log(f"  Total: {total} node & relasi")

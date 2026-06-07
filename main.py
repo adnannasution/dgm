@@ -1,8 +1,8 @@
 import os
 import json
 import threading
-import psycopg2
-import psycopg2.extras
+import psycopg
+from psycopg.rows import dict_row
 from flask import Flask, render_template, request, jsonify
 from neo4j import GraphDatabase
 from dotenv import load_dotenv
@@ -20,32 +20,29 @@ NEO4J_PASS   = os.getenv("NEO4J_PASS", "Neo4j@2024")
 sync_state = {"running": False, "logs": [], "done": False, "error": None}
 
 def get_pg():
-    return psycopg2.connect(DATABASE_URL)
+    return psycopg.connect(DATABASE_URL)
 
 def get_neo():
     return GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASS))
 
 def init_config_table():
-    conn = get_pg()
-    cur  = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS graph_relation_config (
-            id            SERIAL PRIMARY KEY,
-            config_name   TEXT NOT NULL,
-            source_table  TEXT NOT NULL,
-            source_column TEXT NOT NULL,
-            target_label  TEXT NOT NULL DEFAULT 'Equipment',
-            target_column TEXT NOT NULL DEFAULT 'equipment',
-            relation_type TEXT NOT NULL,
-            node_label    TEXT NOT NULL,
-            node_columns  JSONB NOT NULL DEFAULT '[]',
-            is_active     BOOLEAN DEFAULT TRUE,
-            created_at    TIMESTAMP DEFAULT NOW()
-        )
-    """)
-    conn.commit()
-    cur.close()
-    conn.close()
+    with psycopg.connect(DATABASE_URL) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS graph_relation_config (
+                id            SERIAL PRIMARY KEY,
+                config_name   TEXT NOT NULL,
+                source_table  TEXT NOT NULL,
+                source_column TEXT NOT NULL,
+                target_label  TEXT NOT NULL DEFAULT 'Equipment',
+                target_column TEXT NOT NULL DEFAULT 'equipment',
+                relation_type TEXT NOT NULL,
+                node_label    TEXT NOT NULL,
+                node_columns  JSONB NOT NULL DEFAULT '[]',
+                is_active     BOOLEAN DEFAULT TRUE,
+                created_at    TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        conn.commit()
 
 @app.route("/")
 def index():
@@ -53,120 +50,97 @@ def index():
 
 @app.route("/api/configs", methods=["GET"])
 def get_configs():
-    conn = get_pg()
-    cur  = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute("SELECT * FROM graph_relation_config ORDER BY created_at DESC")
-    rows = cur.fetchall()
-    cur.close(); conn.close()
-    return jsonify([dict(r) for r in rows])
+    with psycopg.connect(DATABASE_URL, row_factory=dict_row) as conn:
+        rows = conn.execute("SELECT * FROM graph_relation_config ORDER BY created_at DESC").fetchall()
+    return jsonify(rows)
 
 @app.route("/api/configs", methods=["POST"])
 def create_config():
     data = request.json
-    conn = get_pg()
-    cur  = conn.cursor()
-    cur.execute("""
-        INSERT INTO graph_relation_config
-            (config_name, source_table, source_column, target_label,
-             target_column, relation_type, node_label, node_columns, is_active)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
-        RETURNING id
-    """, (
-        data["config_name"], data["source_table"], data["source_column"],
-        data.get("target_label", "Equipment"), data.get("target_column", "equipment"),
-        data["relation_type"], data["node_label"],
-        json.dumps(data.get("node_columns", [])),
-        data.get("is_active", True)
-    ))
-    new_id = cur.fetchone()[0]
-    conn.commit(); cur.close(); conn.close()
-    return jsonify({"id": new_id, "message": "Config berhasil disimpan"})
+    with psycopg.connect(DATABASE_URL) as conn:
+        row = conn.execute("""
+            INSERT INTO graph_relation_config
+                (config_name, source_table, source_column, target_label,
+                 target_column, relation_type, node_label, node_columns, is_active)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            RETURNING id
+        """, (
+            data["config_name"], data["source_table"], data["source_column"],
+            data.get("target_label", "Equipment"), data.get("target_column", "equipment"),
+            data["relation_type"], data["node_label"],
+            json.dumps(data.get("node_columns", [])),
+            data.get("is_active", True)
+        )).fetchone()
+        conn.commit()
+    return jsonify({"id": row[0], "message": "Config berhasil disimpan"})
 
 @app.route("/api/configs/<int:config_id>", methods=["PUT"])
 def update_config(config_id):
     data = request.json
-    conn = get_pg()
-    cur  = conn.cursor()
-    cur.execute("""
-        UPDATE graph_relation_config SET
-            config_name   = %s, source_table  = %s, source_column = %s,
-            target_label  = %s, target_column = %s, relation_type = %s,
-            node_label    = %s, node_columns  = %s, is_active     = %s
-        WHERE id = %s
-    """, (
-        data["config_name"], data["source_table"], data["source_column"],
-        data.get("target_label", "Equipment"), data.get("target_column", "equipment"),
-        data["relation_type"], data["node_label"],
-        json.dumps(data.get("node_columns", [])),
-        data.get("is_active", True), config_id
-    ))
-    conn.commit(); cur.close(); conn.close()
+    with psycopg.connect(DATABASE_URL) as conn:
+        conn.execute("""
+            UPDATE graph_relation_config SET
+                config_name   = %s, source_table  = %s, source_column = %s,
+                target_label  = %s, target_column = %s, relation_type = %s,
+                node_label    = %s, node_columns  = %s, is_active     = %s
+            WHERE id = %s
+        """, (
+            data["config_name"], data["source_table"], data["source_column"],
+            data.get("target_label", "Equipment"), data.get("target_column", "equipment"),
+            data["relation_type"], data["node_label"],
+            json.dumps(data.get("node_columns", [])),
+            data.get("is_active", True), config_id
+        ))
+        conn.commit()
     return jsonify({"message": "Config berhasil diupdate"})
 
 @app.route("/api/configs/<int:config_id>", methods=["DELETE"])
 def delete_config(config_id):
-    conn = get_pg()
-    cur  = conn.cursor()
-    cur.execute("DELETE FROM graph_relation_config WHERE id = %s", (config_id,))
-    conn.commit(); cur.close(); conn.close()
+    with psycopg.connect(DATABASE_URL) as conn:
+        conn.execute("DELETE FROM graph_relation_config WHERE id = %s", (config_id,))
+        conn.commit()
     return jsonify({"message": "Config berhasil dihapus"})
 
 @app.route("/api/configs/<int:config_id>/toggle", methods=["POST"])
 def toggle_config(config_id):
-    conn = get_pg()
-    cur  = conn.cursor()
-    cur.execute("""
-        UPDATE graph_relation_config SET is_active = NOT is_active
-        WHERE id = %s RETURNING is_active
-    """, (config_id,))
-    new_val = cur.fetchone()[0]
-    conn.commit(); cur.close(); conn.close()
-    return jsonify({"is_active": new_val})
+    with psycopg.connect(DATABASE_URL) as conn:
+        row = conn.execute("""
+            UPDATE graph_relation_config SET is_active = NOT is_active
+            WHERE id = %s RETURNING is_active
+        """, (config_id,)).fetchone()
+        conn.commit()
+    return jsonify({"is_active": row[0]})
 
 @app.route("/api/tables", methods=["GET"])
 def get_tables():
-    conn = get_pg()
-    cur  = conn.cursor()
-    cur.execute("""
-        SELECT table_name
-        FROM information_schema.tables
-        WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-          AND table_name != 'graph_relation_config'
-        ORDER BY table_name
-    """)
-    tables = [r[0] for r in cur.fetchall()]
-    cur.close(); conn.close()
-    return jsonify(tables)
+    with psycopg.connect(DATABASE_URL) as conn:
+        rows = conn.execute("""
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+              AND table_name != 'graph_relation_config'
+            ORDER BY table_name
+        """).fetchall()
+    return jsonify([r[0] for r in rows])
 
 @app.route("/api/tables/<table_name>/columns", methods=["GET"])
 def get_columns(table_name):
-    conn = get_pg()
-    cur  = conn.cursor()
-    cur.execute("""
-        SELECT column_name, data_type
-        FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = %s
-        ORDER BY ordinal_position
-    """, (table_name,))
-    cols = [{"name": r[0], "type": r[1]} for r in cur.fetchall()]
-    cur.close(); conn.close()
-    return jsonify(cols)
+    with psycopg.connect(DATABASE_URL) as conn:
+        rows = conn.execute("""
+            SELECT column_name, data_type FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = %s
+            ORDER BY ordinal_position
+        """, (table_name,)).fetchall()
+    return jsonify([{"name": r[0], "type": r[1]} for r in rows])
 
 @app.route("/api/neo4j/status", methods=["GET"])
 def neo4j_status():
     try:
         neo = get_neo()
         with neo.session() as session:
-            labels_result = session.run("CALL db.labels() YIELD label RETURN label")
-            labels = [r["label"] for r in labels_result]
-            stats = []
-            for label in labels:
-                count = session.run(f"MATCH (n:{label}) RETURN count(n) AS c").single()["c"]
-                stats.append({"label": label, "count": count})
-            rels_result = session.run("""
-                MATCH ()-[r]->() RETURN type(r) AS rel_type, count(r) AS cnt ORDER BY cnt DESC
-            """)
-            rels = [{"type": r["rel_type"], "count": r["cnt"]} for r in rels_result]
+            labels = [r["label"] for r in session.run("CALL db.labels() YIELD label RETURN label")]
+            stats  = [{"label": l, "count": session.run(f"MATCH (n:{l}) RETURN count(n) AS c").single()["c"]} for l in labels]
+            rels   = [{"type": r["rel_type"], "count": r["cnt"]} for r in session.run(
+                "MATCH ()-[r]->() RETURN type(r) AS rel_type, count(r) AS cnt ORDER BY cnt DESC")]
         neo.close()
         return jsonify({"nodes": stats, "relations": rels})
     except Exception as e:
@@ -180,6 +154,7 @@ def start_sync():
     if sync_state["running"]:
         return jsonify({"error": "Sync sedang berjalan"}), 400
     sync_state = {"running": True, "logs": [], "done": False, "error": None}
+
     def run_sync():
         global sync_state
         try:
@@ -188,12 +163,10 @@ def start_sync():
             engine = SyncEngine(conn, neo, sync_state)
             engine.run(config_ids)
             neo.close(); conn.close()
-            sync_state["done"]    = True
-            sync_state["running"] = False
+            sync_state["done"] = True; sync_state["running"] = False
         except Exception as e:
-            sync_state["error"]   = str(e)
-            sync_state["running"] = False
-            sync_state["done"]    = True
+            sync_state["error"] = str(e); sync_state["running"] = False; sync_state["done"] = True
+
     threading.Thread(target=run_sync, daemon=True).start()
     return jsonify({"message": "Sync dimulai"})
 

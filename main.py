@@ -181,7 +181,9 @@ def sync_reset():
         sync_state = {"running": False, "logs": [], "done": False, "error": None}
     return jsonify({"message": "Reset OK"})
 
-if __name__ == "__main__":
+with app.app_context():
     init_config_table()
+
+if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)

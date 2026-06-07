@@ -149,6 +149,48 @@ def neo4j_status():
 
 
 
+
+@app.route("/api/neo4j/cleanup", methods=["POST"])
+def neo4j_cleanup():
+    label = request.json.get("label", "")
+    if not label:
+        return jsonify({"error": "label wajib diisi"}), 400
+    try:
+        neo = get_neo()
+        with neo.session() as session:
+            result = session.run(
+                f"MATCH (n:`{label}`) DETACH DELETE n RETURN count(n) AS deleted"
+            )
+            deleted = result.single()["deleted"]
+        neo.close()
+        return jsonify({"message": f"Berhasil hapus node label '{label}'", "deleted": deleted})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/neo4j/cleanup/<label>", methods=["GET"])
+def neo4j_cleanup_get(label):
+    """Endpoint GET supaya bisa langsung diakses dari browser"""
+    try:
+        neo = get_neo()
+        with neo.session() as session:
+            # Cek dulu berapa node yang akan dihapus
+            count = session.run(f"MATCH (n:`{label}`) RETURN count(n) AS c").single()["c"]
+            if count == 0:
+                neo.close()
+                return f"<h3>✅ Tidak ada node dengan label '{label}'</h3>", 200
+            # Hapus
+            session.run(f"MATCH (n:`{label}`) DETACH DELETE n")
+        neo.close()
+        return f"""
+        <html><body style="font-family:sans-serif;padding:2rem">
+            <h2>✅ Berhasil!</h2>
+            <p>Hapus <strong>{count} node</strong> dengan label <strong>{label}</strong> beserta semua relasinya.</p>
+            <a href="javascript:history.back()">← Kembali</a>
+        </body></html>
+        """, 200
+    except Exception as e:
+        return f"<h3>❌ Error: {str(e)}</h3>", 500
+
 @app.route("/api/neo4j/schema", methods=["GET"])
 def neo4j_schema():
     try:

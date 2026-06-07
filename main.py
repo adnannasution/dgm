@@ -161,62 +161,59 @@ def viz_graph():
     try:
         neo = get_neo()
         with neo.session() as session:
-            # semua label
             all_labels   = [r["label"] for r in session.run("CALL db.labels() YIELD label RETURN label")]
             label_colors = {l: VIZ_COLORS[i % len(VIZ_COLORS)] for i, l in enumerate(all_labels)}
             active_labels = filter_labels if filter_labels else all_labels
 
-            # fetch nodes per label, simpan neo4j elementId
-            nodes       = []
-            elem_id_map = {}   # elementId -> node dict (untuk link lookup)
-            per_label   = max(5, limit // max(len(active_labels), 1))
+            nodes    = []
+            neo_ids  = []   # internal neo4j id (integer)
+            id_map   = {}   # neo4j_id -> display_id
+
+            per_label = max(5, limit // max(len(active_labels), 1))
 
             for label in active_labels:
                 if label not in label_colors:
                     continue
                 result = session.run(
-                    f"MATCH (n:`{label}`) RETURN n, elementId(n) AS eid LIMIT $lim",
+                    f"MATCH (n:`{label}`) RETURN n, id(n) AS nid LIMIT $lim",
                     lim=per_label
                 )
                 for r in result:
-                    n    = r["n"]
-                    eid  = r["eid"]
-                    props = dict(n)
-                    # pakai nilai pertama sebagai display id
-                    display_id = str(list(props.values())[0]) if props else eid
+                    n      = r["n"]
+                    nid    = r["nid"]
+                    props  = dict(n)
+                    # display id = nilai property pertama
+                    display_id = str(list(props.values())[0]) if props else str(nid)
+                    # hindari duplikat display_id
+                    if display_id in id_map.values():
+                        display_id = display_id + f"_{nid}"
                     node_obj = {
                         "id":    display_id,
-                        "eid":   eid,
+                        "nid":   nid,
                         "label": label,
                         "color": label_colors[label],
                         "props": props
                     }
                     nodes.append(node_obj)
-                    elem_id_map[eid] = node_obj
+                    neo_ids.append(nid)
+                    id_map[nid] = display_id
 
-            # fetch relasi antar node yang sudah diambil
-            eid_list = list(elem_id_map.keys())
-            links    = []
-            if len(eid_list) > 1:
+            # fetch relasi pakai id() integer — support semua versi Neo4j
+            links = []
+            if len(neo_ids) > 1:
                 result = session.run("""
                     MATCH (a)-[r]->(b)
-                    WHERE elementId(a) IN $eids AND elementId(b) IN $eids
-                    RETURN elementId(a) AS src_eid, elementId(b) AS tgt_eid, type(r) AS rel_type
+                    WHERE id(a) IN $nids AND id(b) IN $nids
+                    RETURN id(a) AS src_nid, id(b) AS tgt_nid, type(r) AS rel_type
                     LIMIT 500
-                """, eids=eid_list)
+                """, nids=neo_ids)
                 seen = set()
                 for r in result:
-                    src_node = elem_id_map.get(r["src_eid"])
-                    tgt_node = elem_id_map.get(r["tgt_eid"])
-                    if src_node and tgt_node:
-                        key = (src_node["id"], tgt_node["id"])
-                        if key not in seen:
-                            seen.add(key)
-                            links.append({
-                                "source": src_node["id"],
-                                "target": tgt_node["id"],
-                                "type":   r["rel_type"]
-                            })
+                    src = id_map.get(r["src_nid"])
+                    tgt = id_map.get(r["tgt_nid"])
+                    if src and tgt and (src, tgt) not in seen:
+                        seen.add((src, tgt))
+                        links.append({"source": src, "target": tgt, "type": r["rel_type"]})
 
         neo.close()
         return jsonify({"nodes": nodes, "links": links, "label_colors": label_colors})

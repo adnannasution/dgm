@@ -411,7 +411,7 @@ select option { background: #fff; }
 <header>
   <div class="logo">
     <div class="logo-icon">🛢</div>
-    <div class="logo-text"><span>Knowledge Graph</span></div>
+    <div class="logo-text">Pertamina <span>Knowledge Graph</span></div>
   </div>
   <div class="header-right">
     <div style="display:flex;align-items:center;gap:8px">
@@ -658,67 +658,7 @@ select option { background: #fff; }
 
 </main>
 
-<!-- ══ MODAL ════════════════════════════════════════════════════════════════ -->
-<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)">
-<div class="modal">
-  <div class="modal-title">⬡ <span id="modal-title-text">Tambah Konfigurasi Relasi</span></div>
 
-  <div class="form-grid">
-    <div class="form-group full">
-      <label>Nama Config *</label>
-      <input type="text" id="f-name" placeholder="cth: ICU Monitoring → Equipment">
-    </div>
-    <div class="form-group">
-      <label>Source Table (PostgreSQL) *</label>
-      <select id="f-table" onchange="loadColumnsForForm()">
-        <option value="">— Pilih tabel —</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>Kolom Link ke Equipment *</label>
-      <select id="f-src-col">
-        <option value="">— Pilih kolom —</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>Target Node Label (Neo4j)</label>
-      <select id="f-target-label" onchange="loadTargetColumns()">
-        <option value="Equipment">Equipment</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>Target Kolom (Neo4j)</label>
-      <select id="f-target-col">
-        <option value="equipment">equipment</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>Tipe Relasi (Neo4j) *</label>
-      <input type="text" id="f-rel" placeholder="cth: PUNYA_ICU">
-    </div>
-    <div class="form-group">
-      <label>Node Label (Neo4j) *</label>
-      <input type="text" id="f-node-label" placeholder="cth: ICUMonitoring">
-    </div>
-    <div class="form-group full">
-      <label>Kolom → Property Node</label>
-      <div class="col-picker" id="col-picker">
-        <span style="color:var(--muted);font-size:0.75rem">Pilih tabel dulu...</span>
-      </div>
-      <div style="font-size:0.72rem;color:var(--muted);margin-top:5px">Klik kolom untuk pilih. Kolom link otomatis ikut.</div>
-    </div>
-    <div class="form-group full" style="flex-direction:row;align-items:center;gap:10px">
-      <input type="checkbox" id="f-active" checked style="width:auto;accent-color:var(--accent)">
-      <label for="f-active" style="text-transform:none;font-size:0.85rem;cursor:pointer;font-weight:500">Aktif (bisa di-sync)</label>
-    </div>
-  </div>
-
-  <div class="modal-footer">
-    <button class="btn btn-ghost" onclick="closeModal()">Batal</button>
-    <button class="btn btn-primary" onclick="saveConfig()">💾 Simpan Config</button>
-  </div>
-</div>
-</div>
 
 <script>
 let configs      = [];
@@ -1195,10 +1135,10 @@ function renderViz() {
 
   if (vizMode === 'force') {
     vizSimulation = d3.forceSimulation(nodes)
-      .force('link', d3.forceLink(links).id(d=>d.id).distance(70).strength(0.4))
-      .force('charge', d3.forceManyBody().strength(-180))
+      .force('link', d3.forceLink(links).id(d=>d.id).distance(35).strength(0.9))
+      .force('charge', d3.forceManyBody().strength(-50))
       .force('center', d3.forceCenter(W/2, H/2))
-      .force('collision', d3.forceCollide(d => d.label==='Equipment'?16:12))
+      .force('collision', d3.forceCollide(d => d.label==='Equipment'?13:9))
       .on('tick', () => {
         linkSel.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
                .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
@@ -1435,5 +1375,67 @@ function renderSchema(data) {
 loadConfigs();
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<!-- ══ MODAL ════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)">
+<div class="modal">
+  <div class="modal-title">⬡ <span id="modal-title-text">Tambah Konfigurasi Relasi</span></div>
+
+  <div class="form-grid">
+    <div class="form-group full">
+      <label>Nama Config *</label>
+      <input type="text" id="f-name" placeholder="cth: ICU Monitoring → Equipment">
+    </div>
+    <div class="form-group">
+      <label>Source Table (PostgreSQL) *</label>
+      <select id="f-table" onchange="loadColumnsForForm()">
+        <option value="">— Pilih tabel —</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Kolom Link ke Equipment *</label>
+      <select id="f-src-col">
+        <option value="">— Pilih kolom —</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Target Node Label (Neo4j)</label>
+      <select id="f-target-label" onchange="loadTargetColumns()">
+        <option value="Equipment">Equipment</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Target Kolom (Neo4j)</label>
+      <select id="f-target-col">
+        <option value="equipment">equipment</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Tipe Relasi (Neo4j) *</label>
+      <input type="text" id="f-rel" placeholder="cth: PUNYA_ICU">
+    </div>
+    <div class="form-group">
+      <label>Node Label (Neo4j) *</label>
+      <input type="text" id="f-node-label" placeholder="cth: ICUMonitoring">
+    </div>
+    <div class="form-group full">
+      <label>Kolom → Property Node</label>
+      <div class="col-picker" id="col-picker">
+        <span style="color:var(--muted);font-size:0.75rem">Pilih tabel dulu...</span>
+      </div>
+      <div style="font-size:0.72rem;color:var(--muted);margin-top:5px">Klik kolom untuk pilih. Kolom link otomatis ikut.</div>
+    </div>
+    <div class="form-group full" style="flex-direction:row;align-items:center;gap:10px">
+      <input type="checkbox" id="f-active" checked style="width:auto;accent-color:var(--accent)">
+      <label for="f-active" style="text-transform:none;font-size:0.85rem;cursor:pointer;font-weight:500">Aktif (bisa di-sync)</label>
+    </div>
+  </div>
+
+  <div class="modal-footer">
+    <button class="btn btn-ghost" onclick="closeModal()">Batal</button>
+    <button class="btn btn-primary" onclick="saveConfig()">💾 Simpan Config</button>
+  </div>
+</div>
+</div>
+
 </body>
 </html>

@@ -165,8 +165,10 @@ def viz_graph():
             label_colors = {l: VIZ_COLORS[i % len(VIZ_COLORS)] for i, l in enumerate(all_labels)}
             active_labels = filter_labels if filter_labels else all_labels
 
-            nodes_map = {}  # nid -> node dict
+            nodes_map = {}
             used_ids  = set()
+            links      = []
+            seen_links = set()
 
             def make_display_id(props, nid):
                 raw = str(list(props.values())[0]) if props else str(nid)
@@ -178,74 +180,72 @@ def viz_graph():
                 used_ids.add(uid)
                 return uid
 
-            # Ambil relasi beserta kedua node sekaligus — ini yang paling akurat
-            label_filter = ""
-            if active_labels:
-                # filter: hanya node dengan label yang aktif
-                label_filter = "WHERE " + " OR ".join([f"n:`{l}`" for l in active_labels])
+            def add_node(n, nid, labels_list):
+                if nid in nodes_map:
+                    return nodes_map[nid]["id"]
+                props = dict(n)
+                label = labels_list[0] if labels_list else "Unknown"
+                did   = make_display_id(props, nid)
+                nodes_map[nid] = {
+                    "id": did, "nid": nid, "label": label,
+                    "color": label_colors.get(label, "#94a3b8"), "props": props
+                }
+                return did
 
-            result = session.run(f"""
-                MATCH (a)-[r]->(b)
-                WHERE any(l IN labels(a) WHERE l IN $active)
-                  AND any(l IN labels(b) WHERE l IN $active)
-                RETURN a, id(a) AS aid, labels(a) AS alabels,
-                       b, id(b) AS bid, labels(b) AS blabels,
-                       type(r) AS rel_type
-                LIMIT $lim
-            """, active=active_labels, lim=limit * 3)
+            # Fetch dari sisi monitoring -> Equipment (arah benar)
+            non_eq_labels = [l for l in active_labels if l != "Equipment"]
+            per_mon = max(10, limit // max(len(non_eq_labels), 1))
 
-            links = []
-            seen_links = set()
+            for label in non_eq_labels:
+                if label not in label_colors:
+                    continue
+                # Equipment -> Monitoring
+                r1 = session.run(f"""
+                    MATCH (eq:Equipment)-[r]->(mon:`{label}`)
+                    RETURN eq, id(eq) AS eid, labels(eq) AS el,
+                           mon, id(mon) AS mid, labels(mon) AS ml,
+                           type(r) AS rt
+                    LIMIT $lim
+                """, lim=per_mon)
+                for r in r1:
+                    eid = add_node(r["eq"],  r["eid"], r["el"])
+                    mid = add_node(r["mon"], r["mid"], r["ml"])
+                    key = (eid, mid)
+                    if key not in seen_links:
+                        seen_links.add(key)
+                        links.append({"source": eid, "target": mid, "type": r["rt"]})
 
-            for r in result:
-                # node a
-                aid = r["aid"]
-                if aid not in nodes_map:
-                    props = dict(r["a"])
-                    label = r["alabels"][0] if r["alabels"] else "Unknown"
-                    did   = make_display_id(props, aid)
-                    nodes_map[aid] = {"id": did, "nid": aid, "label": label,
-                                      "color": label_colors.get(label, "#94a3b8"), "props": props}
+                # Monitoring -> Equipment
+                r2 = session.run(f"""
+                    MATCH (mon:`{label}`)-[r]->(eq:Equipment)
+                    RETURN mon, id(mon) AS mid, labels(mon) AS ml,
+                           eq, id(eq) AS eid, labels(eq) AS el,
+                           type(r) AS rt
+                    LIMIT $lim
+                """, lim=per_mon)
+                for r in r2:
+                    mid = add_node(r["mon"], r["mid"], r["ml"])
+                    eid = add_node(r["eq"],  r["eid"], r["el"])
+                    key = (mid, eid)
+                    if key not in seen_links:
+                        seen_links.add(key)
+                        links.append({"source": mid, "target": eid, "type": r["rt"]})
 
-                # node b
-                bid = r["bid"]
-                if bid not in nodes_map:
-                    props = dict(r["b"])
-                    label = r["blabels"][0] if r["blabels"] else "Unknown"
-                    did   = make_display_id(props, bid)
-                    nodes_map[bid] = {"id": did, "nid": bid, "label": label,
-                                      "color": label_colors.get(label, "#94a3b8"), "props": props}
-
-                # link
-                src_id = nodes_map[aid]["id"]
-                tgt_id = nodes_map[bid]["id"]
-                key    = (src_id, tgt_id)
-                if key not in seen_links:
-                    seen_links.add(key)
-                    links.append({"source": src_id, "target": tgt_id, "type": r["rel_type"]})
-
-            nodes = list(nodes_map.values())
-
-            # Tambahkan node isolated per label yang aktif (supaya semua label muncul)
+            # Tambah node isolated per label yang masih kurang
             per_label = max(5, limit // max(len(active_labels), 1))
             for label in active_labels:
                 if label not in label_colors:
                     continue
-                existing = sum(1 for n in nodes if n["label"] == label)
+                existing = sum(1 for n in nodes_map.values() if n["label"] == label)
                 if existing < per_label:
                     res2 = session.run(
                         f"MATCH (n:`{label}`) RETURN n, id(n) AS nid LIMIT $lim",
                         lim=per_label - existing
                     )
                     for row in res2:
-                        nid = row["nid"]
-                        if nid not in nodes_map:
-                            props = dict(row["n"])
-                            did   = make_display_id(props, nid)
-                            node_obj = {"id": did, "nid": nid, "label": label,
-                                        "color": label_colors[label], "props": props}
-                            nodes.append(node_obj)
-                            nodes_map[nid] = node_obj
+                        add_node(row["n"], row["nid"], [label])
+
+            nodes = list(nodes_map.values())
 
         neo.close()
         return jsonify({"nodes": nodes, "links": links, "label_colors": label_colors})

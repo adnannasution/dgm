@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Graph Manager — Neo4j Config</title>
+<title>Pertamina Knowledge Graph Manager</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -56,13 +56,13 @@ header {
 .logo { display: flex; align-items: center; gap: 10px; }
 .logo-icon {
   width: 34px; height: 34px;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  background: linear-gradient(135deg, #dc2626, #f97316);
   border-radius: 9px;
   display: flex; align-items: center; justify-content: center;
   font-size: 16px; color: #fff;
-  box-shadow: 0 2px 8px rgba(37,99,235,0.3);
+  box-shadow: 0 2px 8px rgba(220,38,38,0.3);
 }
-.logo-text { font-size: 1rem; font-weight: 800; color: var(--text); letter-spacing: -0.3px; }
+.logo-text { font-size: 0.92rem; font-weight: 800; color: var(--text); letter-spacing: -0.3px; }
 .logo-text span { color: var(--accent); }
 
 .header-right { display: flex; align-items: center; gap: 10px; }
@@ -410,11 +410,14 @@ select option { background: #fff; }
 
 <header>
   <div class="logo">
-    <div class="logo-icon">⬡</div>
-    <div class="logo-text">Graph<span>Manager</span></div>
+    <div class="logo-icon">🛢</div>
+    <div class="logo-text"><span>Knowledge Graph</span></div>
   </div>
   <div class="header-right">
-    <span class="badge-neo">Neo4j · PostgreSQL</span>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="badge-neo" style="background:#fff7ed;color:#c2410c;border-color:#fed7aa">Maintenance AI</span>
+      <span class="badge-neo">Neo4j · PostgreSQL</span>
+    </div>
   </div>
 </header>
 
@@ -423,6 +426,7 @@ select option { background: #fff; }
   <button class="tab-btn" onclick="switchTab('sync', this)">▶ Sync</button>
   <button class="tab-btn" onclick="switchTab('status', this)">📊 Status Graph</button>
   <button class="tab-btn" onclick="switchTab('viz', this)">🕸 Visualisasi</button>
+  <button class="tab-btn" onclick="switchTab('schema', this)">📐 Skema</button>
 </nav>
 
 <main>
@@ -592,16 +596,63 @@ select option { background: #fff; }
       <svg id="viz-svg" style="width:100%;height:540px;display:block"></svg>
 
       <!-- tooltip -->
-      <div id="viz-tooltip" style="display:none;position:absolute;background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:12px 14px;width:200px;box-shadow:0 4px 20px rgba(0,0,0,0.1);pointer-events:none;z-index:20">
-        <div id="viz-tt-header" style="display:flex;align-items:center;gap:7px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
-          <div id="viz-tt-dot" style="width:10px;height:10px;border-radius:50%;background:var(--accent)"></div>
-          <span id="viz-tt-id" style="font-size:0.78rem;font-weight:700;color:var(--text)"></span>
-          <span id="viz-tt-label" style="font-size:0.65rem;color:var(--accent2);background:var(--accent2-lt);padding:2px 6px;border-radius:10px"></span>
+      <div id="viz-tooltip" style="display:none;position:absolute;background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:0;width:240px;box-shadow:0 8px 30px rgba(0,0,0,0.12);pointer-events:auto;z-index:20;overflow:hidden">
+        <div style="padding:12px 14px 10px;border-bottom:1px solid var(--border);background:#fafbfc;border-radius:12px 12px 0 0">
+          <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+            <div id="viz-tt-dot" style="width:10px;height:10px;border-radius:50%;background:var(--accent);flex-shrink:0"></div>
+            <span id="viz-tt-id" style="font-size:0.8rem;font-weight:700;color:var(--text);word-break:break-all"></span>
+          </div>
+          <span id="viz-tt-label" style="font-size:0.65rem;color:var(--accent2);background:var(--accent2-lt);padding:2px 8px;border-radius:10px;display:inline-block;margin-top:5px"></span>
         </div>
-        <div id="viz-tt-props" style="display:flex;flex-direction:column;gap:5px;font-size:0.72rem;max-height:180px;overflow-y:auto"></div>
+        <div id="viz-tt-props" style="display:flex;flex-direction:column;gap:0;font-size:0.72rem;max-height:260px;overflow-y:auto;padding:8px 0"></div>
+        <div style="padding:8px 14px;border-top:1px solid var(--border);background:#fafbfc;border-radius:0 0 12px 12px">
+          <button onclick="hideTooltip()" style="font-size:0.72rem;color:var(--muted);background:none;border:none;cursor:pointer;padding:0">✕ Tutup</button>
+        </div>
       </div>
     </div>
 
+  </div>
+</div>
+
+
+<!-- ══ TAB SCHEMA ══════════════════════════════════════════════════════════ -->
+<div class="page" id="tab-schema">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Skema Graph</div>
+      <div class="page-subtitle">Diagram relasi antar label/tabel di Neo4j</div>
+    </div>
+    <button class="btn btn-ghost" onclick="loadSchema()">↺ Refresh</button>
+  </div>
+
+  <div style="display:flex;gap:1.25rem;align-items:flex-start">
+
+    <!-- legend -->
+    <div style="width:220px;min-width:220px;display:flex;flex-direction:column;gap:1rem">
+      <div class="card" style="padding:1.1rem">
+        <div style="font-size:0.74rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:10px">Label</div>
+        <div id="schema-legend" style="display:flex;flex-direction:column;gap:6px">
+          <div style="color:var(--muted);font-size:0.78rem">Memuat...</div>
+        </div>
+      </div>
+      <div class="card" style="padding:1.1rem">
+        <div style="font-size:0.74rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:10px">Relasi</div>
+        <div id="schema-rels" style="display:flex;flex-direction:column;gap:6px">
+          <div style="color:var(--muted);font-size:0.78rem">Memuat...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- canvas -->
+    <div class="card" style="flex:1;padding:0;overflow:hidden;position:relative;min-height:540px">
+      <div id="schema-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--surface);z-index:10;border-radius:14px">
+        <div style="text-align:center;color:var(--muted)">
+          <div style="font-size:2rem;margin-bottom:8px">📐</div>
+          <div style="font-size:0.85rem">Memuat skema...</div>
+        </div>
+      </div>
+      <svg id="schema-svg" style="width:100%;height:540px;display:block"></svg>
+    </div>
   </div>
 </div>
 
@@ -687,6 +738,7 @@ function switchTab(tab, btn) {
   if (tab === 'status') loadStatus();
   if (tab === 'sync')   loadSyncList();
   if (tab === 'viz')    initViz();
+  if (tab === 'schema') loadSchema();
 }
 
 // ── CONFIGS ───────────────────────────────────────────────────────────────
@@ -1199,16 +1251,14 @@ function showTooltip(event, d) {
   document.getElementById('viz-tt-label').style.background = d.color + '20';
 
   const propsEl = document.getElementById('viz-tt-props');
-  const skip = new Set(['id','label','color']);
-  propsEl.innerHTML = Object.entries(d.props || {})
-    .filter(([k,v]) => !skip.has(k) && v)
-    .slice(0,8)
-    .map(([k,v]) => `
-      <div>
-        <div style="color:var(--muted);text-transform:uppercase;font-size:0.62rem;letter-spacing:0.3px">${k}</div>
-        <div style="color:var(--text);font-weight:500;word-break:break-all">${String(v).slice(0,60)}</div>
-      </div>
-    `).join('');
+  const skip = new Set(['id','label','color','nid']);
+  const entries = Object.entries(d.props || {}).filter(([k,v]) => !skip.has(k) && v !== null && v !== '');
+  propsEl.innerHTML = entries.map(([k,v], i) => `
+    <div style="padding:7px 14px;border-bottom:${i < entries.length-1 ? '1px solid var(--border)' : 'none'};background:${i%2===0?'transparent':'#fafbfc'}">
+      <div style="color:var(--muted);text-transform:uppercase;font-size:0.6rem;letter-spacing:0.4px;font-weight:600;margin-bottom:2px">${k.replace(/_/g,' ')}</div>
+      <div style="color:var(--text);font-weight:500;word-break:break-word;line-height:1.4;font-size:0.76rem">${String(v)}</div>
+    </div>
+  `).join('') || '<div style="padding:12px 14px;color:var(--muted);font-size:0.78rem">Tidak ada properti</div>';
 
   tt.style.display = 'block';
   tt.style.left    = Math.min(x, svgEl.clientWidth - 220) + 'px';
@@ -1218,6 +1268,167 @@ function showTooltip(event, d) {
 
 function hideTooltip() {
   document.getElementById('viz-tooltip').style.display = 'none';
+}
+
+
+// ── SCHEMA ───────────────────────────────────────────────────────────────────
+async function loadSchema() {
+  const loading = document.getElementById('schema-loading');
+  loading.style.display = 'flex';
+  loading.innerHTML = '<div style="text-align:center;color:var(--muted)"><div class="spin" style="font-size:1.5rem">⬡</div><div style="font-size:0.82rem;margin-top:8px">Memuat skema dari Neo4j...</div></div>';
+
+  try {
+    const res  = await fetch('/api/neo4j/schema');
+    const data = await res.json();
+    renderSchema(data);
+    loading.style.display = 'none';
+  } catch(e) {
+    loading.innerHTML = `<div style="color:var(--red);text-align:center;padding:2rem">❌ Gagal load skema</div>`;
+  }
+}
+
+function renderSchema(data) {
+  const VIZ_COLORS = ["#2563eb","#7c3aed","#059669","#d97706","#dc2626","#0891b2","#be185d","#65a30d"];
+  const labelColors = {};
+  data.nodes.forEach((n, i) => { labelColors[n.label] = VIZ_COLORS[i % VIZ_COLORS.length]; });
+
+  // Legend
+  document.getElementById('schema-legend').innerHTML = data.nodes.map(n => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;background:var(--bg);border-radius:7px;border:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:10px;height:10px;border-radius:50%;background:${labelColors[n.label]}"></div>
+        <span style="font-size:0.78rem;font-weight:600;color:var(--text)">${n.label}</span>
+      </div>
+      <span style="font-size:0.68rem;color:var(--muted);font-variant-numeric:tabular-nums">${n.count.toLocaleString('id-ID')}</span>
+    </div>
+  `).join('');
+
+  document.getElementById('schema-rels').innerHTML = data.relations.map(r => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;background:var(--accent-lt);border-radius:7px;border:1px solid #bfdbfe">
+      <span style="font-size:0.72rem;font-weight:600;color:var(--accent);font-family:var(--mono)">-[${r.type}]→</span>
+      <span style="font-size:0.68rem;color:var(--muted);font-variant-numeric:tabular-nums">${r.count.toLocaleString('id-ID')}</span>
+    </div>
+  `).join('');
+
+  // Build schema nodes (1 per label)
+  const svg   = document.getElementById('schema-svg');
+  const W     = svg.clientWidth || 800;
+  const H     = 540;
+  svg.innerHTML = '';
+
+  const d3svg = d3.select(svg);
+  d3svg.call(d3.zoom().scaleExtent([0.3, 3]).on('zoom', e => g.attr('transform', e.transform)));
+
+  const g = d3svg.append('g');
+
+  // defs
+  const defs = d3svg.append('defs');
+  // arrow marker per color
+  Object.entries(labelColors).forEach(([label, color]) => {
+    defs.append('marker')
+      .attr('id', `sarrow-${label.replace(/\s/g,'')}`)
+      .attr('viewBox','0 -4 8 8').attr('refX',32).attr('refY',0)
+      .attr('markerWidth',6).attr('markerHeight',6).attr('orient','auto')
+      .append('path').attr('d','M0,-4L8,0L0,4').attr('fill','#94a3b8');
+  });
+  defs.append('marker')
+    .attr('id','sarrow-default')
+    .attr('viewBox','0 -4 8 8').attr('refX',32).attr('refY',0)
+    .attr('markerWidth',6).attr('markerHeight',6).attr('orient','auto')
+    .append('path').attr('d','M0,-4L8,0L0,4').attr('fill','#94a3b8');
+
+  const schemaNodes = data.nodes.map(n => ({
+    id:    n.label,
+    count: n.count,
+    color: labelColors[n.label]
+  }));
+
+  const schemaLinks = data.schema_links || [];
+
+  const sim = d3.forceSimulation(schemaNodes)
+    .force('link', d3.forceLink(schemaLinks).id(d=>d.id).distance(180).strength(0.5))
+    .force('charge', d3.forceManyBody().strength(-800))
+    .force('center', d3.forceCenter(W/2, H/2))
+    .force('collision', d3.forceCollide(70));
+
+  // Links
+  const linkG = g.append('g').selectAll('g').data(schemaLinks).join('g');
+
+  const linkLine = linkG.append('path')
+    .attr('fill','none')
+    .attr('stroke','#cbd5e1')
+    .attr('stroke-width', 2)
+    .attr('marker-end','url(#sarrow-default)');
+
+  const linkLabel = linkG.append('text')
+    .text(d => d.type)
+    .attr('text-anchor','middle')
+    .attr('font-size', 10)
+    .attr('font-family','var(--mono)')
+    .attr('fill','#64748b')
+    .attr('dy',-6)
+    .style('pointer-events','none');
+
+  // Nodes
+  const nodeG = g.append('g').selectAll('g').data(schemaNodes).join('g')
+    .style('cursor','pointer')
+    .call(d3.drag()
+      .on('start',(e,d)=>{ if(!e.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+      .on('drag', (e,d)=>{ d.fx=e.x; d.fy=e.y; })
+      .on('end',  (e,d)=>{ if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; }));
+
+  // Shadow/glow
+  nodeG.append('circle')
+    .attr('r', 38)
+    .attr('fill', d => d.color)
+    .attr('fill-opacity', 0.08)
+    .attr('stroke','none');
+
+  nodeG.append('circle')
+    .attr('r', 30)
+    .attr('fill', d => d.color)
+    .attr('fill-opacity', 0.15)
+    .attr('stroke', d => d.color)
+    .attr('stroke-width', 2)
+    .attr('stroke-opacity', 0.4);
+
+  nodeG.append('circle')
+    .attr('r', 24)
+    .attr('fill', d => d.color)
+    .attr('stroke','#fff')
+    .attr('stroke-width', 3);
+
+  // Label
+  nodeG.append('text')
+    .text(d => d.id)
+    .attr('text-anchor','middle')
+    .attr('dy', 44)
+    .attr('font-size', 11)
+    .attr('font-weight', 700)
+    .attr('fill','var(--text2)')
+    .style('pointer-events','none');
+
+  // Count
+  nodeG.append('text')
+    .text(d => d.count.toLocaleString('id-ID'))
+    .attr('text-anchor','middle')
+    .attr('dy', 57)
+    .attr('font-size', 9)
+    .attr('fill','var(--muted)')
+    .style('pointer-events','none');
+
+  sim.on('tick', () => {
+    linkLine.attr('d', d => {
+      const dx = d.target.x - d.source.x;
+      const dy = d.target.y - d.source.y;
+      const dr = Math.sqrt(dx*dx + dy*dy) * 1.5;
+      return `M${d.source.x},${d.source.y} A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+    });
+    linkLabel
+      .attr('x', d => (d.source.x + d.target.x) / 2)
+      .attr('y', d => (d.source.y + d.target.y) / 2);
+    nodeG.attr('transform', d => `translate(${d.x},${d.y})`);
+  });
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────

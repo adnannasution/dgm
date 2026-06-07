@@ -148,6 +148,45 @@ def neo4j_status():
 
 
 
+
+@app.route("/api/neo4j/schema", methods=["GET"])
+def neo4j_schema():
+    try:
+        neo = get_neo()
+        with neo.session() as session:
+            # Node counts per label
+            all_labels = [r["label"] for r in session.run("CALL db.labels() YIELD label RETURN label")]
+            nodes = []
+            for label in all_labels:
+                count = session.run(f"MATCH (n:`{label}`) RETURN count(n) AS c").single()["c"]
+                nodes.append({"label": label, "count": count})
+
+            # Relations per type + from/to label
+            rels_result = session.run("""
+                MATCH (a)-[r]->(b)
+                WITH labels(a)[0] AS from_label, type(r) AS rel_type, labels(b)[0] AS to_label, count(r) AS cnt
+                RETURN from_label, rel_type, to_label, cnt
+                ORDER BY cnt DESC
+            """)
+            relations = []
+            schema_links = []
+            seen_rel = set()
+            for r in rels_result:
+                rel_type   = r["rel_type"]
+                from_label = r["from_label"]
+                to_label   = r["to_label"]
+                cnt        = r["cnt"]
+                relations.append({"type": rel_type, "count": cnt, "from": from_label, "to": to_label})
+                key = (from_label, to_label, rel_type)
+                if key not in seen_rel:
+                    seen_rel.add(key)
+                    schema_links.append({"source": from_label, "target": to_label, "type": rel_type})
+
+        neo.close()
+        return jsonify({"nodes": nodes, "relations": relations, "schema_links": schema_links})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/api/neo4j/label-props", methods=["GET"])
 def neo4j_label_props():
     label = request.args.get("label", "Equipment")

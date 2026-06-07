@@ -147,6 +147,24 @@ def neo4j_status():
         return jsonify({"error": str(e)}), 500
 
 
+
+@app.route("/api/neo4j/label-props", methods=["GET"])
+def neo4j_label_props():
+    label = request.args.get("label", "Equipment")
+    try:
+        neo = get_neo()
+        with neo.session() as session:
+            # Ambil sample node untuk dapat property keys
+            result = session.run(
+                f"MATCH (n:`{label}`) RETURN keys(n) AS props LIMIT 1"
+            )
+            row = result.single()
+            props = sorted(row["props"]) if row else []
+        neo.close()
+        return jsonify({"props": props})
+    except Exception as e:
+        return jsonify({"props": [], "error": str(e)})
+
 @app.route("/api/viz/graph", methods=["GET"])
 def viz_graph():
     limit        = int(request.args.get("limit", 75))

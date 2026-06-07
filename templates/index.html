@@ -631,11 +631,15 @@ select option { background: #fff; }
     </div>
     <div class="form-group">
       <label>Target Node Label (Neo4j)</label>
-      <input type="text" id="f-target-label" value="Equipment" placeholder="Equipment">
+      <select id="f-target-label" onchange="loadTargetColumns()">
+        <option value="Equipment">Equipment</option>
+      </select>
     </div>
     <div class="form-group">
       <label>Target Kolom (Neo4j)</label>
-      <input type="text" id="f-target-col" value="equipment" placeholder="equipment">
+      <select id="f-target-col">
+        <option value="equipment">equipment</option>
+      </select>
     </div>
     <div class="form-group">
       <label>Tipe Relasi (Neo4j) *</label>
@@ -762,12 +766,15 @@ async function openModal(id = null) {
   document.getElementById('col-picker').innerHTML = '<span style="color:var(--muted);font-size:0.75rem">Pilih tabel dulu...</span>';
 
   await loadTablesForForm();
+  await loadTargetLabels();
 
   if (id) {
     const cfg = configs.find(c => c.id === id);
     if (cfg) {
       document.getElementById('f-name').value         = cfg.config_name;
+      // set target label then reload columns
       document.getElementById('f-target-label').value = cfg.target_label;
+      await loadTargetColumns();
       document.getElementById('f-target-col').value   = cfg.target_column;
       document.getElementById('f-rel').value          = cfg.relation_type;
       document.getElementById('f-node-label').value   = cfg.node_label;
@@ -791,6 +798,46 @@ async function loadTablesForForm() {
   const cur    = sel.value;
   sel.innerHTML = '<option value="">— Pilih tabel —</option>' +
     tables.map(t => `<option value="${t}" ${t===cur?'selected':''}>${t}</option>`).join('');
+}
+
+async function loadTargetLabels() {
+  // Fetch existing Neo4j labels dari status endpoint
+  const sel = document.getElementById('f-target-label');
+  const curVal = sel.value;
+  try {
+    const res  = await fetch('/api/neo4j/status');
+    const data = await res.json();
+    if (data.nodes && data.nodes.length) {
+      sel.innerHTML = data.nodes.map(n =>
+        `<option value="${n.label}" ${n.label === curVal ? 'selected' : ''}>${n.label} (${n.count.toLocaleString('id-ID')} node)</option>`
+      ).join('');
+    }
+  } catch(e) {
+    // fallback biarkan default Equipment
+  }
+  await loadTargetColumns();
+}
+
+async function loadTargetColumns() {
+  const label   = document.getElementById('f-target-label').value;
+  const colSel  = document.getElementById('f-target-col');
+  const curVal  = colSel.value;
+
+  // Cari label → table name mapping dari configs yang ada
+  // Fallback: fetch columns dari neo4j via /api/neo4j/label-props
+  try {
+    const res  = await fetch(`/api/neo4j/label-props?label=${encodeURIComponent(label)}`);
+    const data = await res.json();
+    if (data.props && data.props.length) {
+      colSel.innerHTML = data.props.map(p =>
+        `<option value="${p}" ${p === curVal ? 'selected' : ''}>${p}</option>`
+      ).join('');
+    } else {
+      colSel.innerHTML = `<option value="">(tidak ada property)</option>`;
+    }
+  } catch(e) {
+    colSel.innerHTML = `<option value="equipment">equipment</option>`;
+  }
 }
 
 async function loadColumnsForForm(preselectSrcCol = null) {

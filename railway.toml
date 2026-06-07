@@ -1,9 +1,0 @@
-[build]
-builder = "nixpacks"
-buildCommand = "pip install -r requirements.txt"
-
-[deploy]
-startCommand = "gunicorn main:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120"
-
-[[variables]]
-NIXPACKS_PKGS = "postgresql"

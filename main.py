@@ -165,55 +165,84 @@ def viz_graph():
             label_colors = {l: VIZ_COLORS[i % len(VIZ_COLORS)] for i, l in enumerate(all_labels)}
             active_labels = filter_labels if filter_labels else all_labels
 
-            nodes    = []
-            neo_ids  = []   # internal neo4j id (integer)
-            id_map   = {}   # neo4j_id -> display_id
+            nodes_map = {}  # nid -> node dict
+            used_ids  = set()
 
-            per_label = max(5, limit // max(len(active_labels), 1))
+            def make_display_id(props, nid):
+                raw = str(list(props.values())[0]) if props else str(nid)
+                uid = raw
+                counter = 1
+                while uid in used_ids:
+                    uid = f"{raw}_{counter}"
+                    counter += 1
+                used_ids.add(uid)
+                return uid
 
-            for label in active_labels:
-                if label not in label_colors:
-                    continue
-                result = session.run(
-                    f"MATCH (n:`{label}`) RETURN n, id(n) AS nid LIMIT $lim",
-                    lim=per_label
-                )
-                for r in result:
-                    n      = r["n"]
-                    nid    = r["nid"]
-                    props  = dict(n)
-                    # display id = nilai property pertama
-                    display_id = str(list(props.values())[0]) if props else str(nid)
-                    # hindari duplikat display_id
-                    if display_id in id_map.values():
-                        display_id = display_id + f"_{nid}"
-                    node_obj = {
-                        "id":    display_id,
-                        "nid":   nid,
-                        "label": label,
-                        "color": label_colors[label],
-                        "props": props
-                    }
-                    nodes.append(node_obj)
-                    neo_ids.append(nid)
-                    id_map[nid] = display_id
+            # Ambil relasi beserta kedua node sekaligus — ini yang paling akurat
+            label_filter = ""
+            if active_labels:
+                # filter: hanya node dengan label yang aktif
+                label_filter = "WHERE " + " OR ".join([f"n:`{l}`" for l in active_labels])
 
-            # fetch relasi pakai id() integer — support semua versi Neo4j
+            result = session.run(f"""
+                MATCH (a)-[r]->(b)
+                WHERE any(l IN labels(a) WHERE l IN $active)
+                  AND any(l IN labels(b) WHERE l IN $active)
+                RETURN a, id(a) AS aid, labels(a) AS alabels,
+                       b, id(b) AS bid, labels(b) AS blabels,
+                       type(r) AS rel_type
+                LIMIT $lim
+            """, active=active_labels, lim=limit * 3)
+
             links = []
-            if len(neo_ids) > 1:
-                result = session.run("""
-                    MATCH (a)-[r]->(b)
-                    WHERE id(a) IN $nids AND id(b) IN $nids
-                    RETURN id(a) AS src_nid, id(b) AS tgt_nid, type(r) AS rel_type
-                    LIMIT 500
-                """, nids=neo_ids)
-                seen = set()
-                for r in result:
-                    src = id_map.get(r["src_nid"])
-                    tgt = id_map.get(r["tgt_nid"])
-                    if src and tgt and (src, tgt) not in seen:
-                        seen.add((src, tgt))
-                        links.append({"source": src, "target": tgt, "type": r["rel_type"]})
+            seen_links = set()
+
+            for r in result:
+                # node a
+                aid = r["aid"]
+                if aid not in nodes_map:
+                    props = dict(r["a"])
+                    label = r["alabels"][0] if r["alabels"] else "Unknown"
+                    did   = make_display_id(props, aid)
+                    nodes_map[aid] = {"id": did, "nid": aid, "label": label,
+                                      "color": label_colors.get(label, "#94a3b8"), "props": props}
+
+                # node b
+                bid = r["bid"]
+                if bid not in nodes_map:
+                    props = dict(r["b"])
+                    label = r["blabels"][0] if r["blabels"] else "Unknown"
+                    did   = make_display_id(props, bid)
+                    nodes_map[bid] = {"id": did, "nid": bid, "label": label,
+                                      "color": label_colors.get(label, "#94a3b8"), "props": props}
+
+                # link
+                src_id = nodes_map[aid]["id"]
+                tgt_id = nodes_map[bid]["id"]
+                key    = (src_id, tgt_id)
+                if key not in seen_links:
+                    seen_links.add(key)
+                    links.append({"source": src_id, "target": tgt_id, "type": r["rel_type"]})
+
+            nodes = list(nodes_map.values())
+
+            # Kalau tidak ada relasi (node isolated), tambahkan node tanpa relasi
+            if not nodes:
+                per_label = max(5, limit // max(len(active_labels), 1))
+                for label in active_labels:
+                    if label not in label_colors:
+                        continue
+                    res2 = session.run(
+                        f"MATCH (n:`{label}`) RETURN n, id(n) AS nid LIMIT $lim",
+                        lim=per_label
+                    )
+                    for row in res2:
+                        nid  = row["nid"]
+                        if nid not in nodes_map:
+                            props = dict(row["n"])
+                            did   = make_display_id(props, nid)
+                            nodes.append({"id": did, "nid": nid, "label": label,
+                                         "color": label_colors[label], "props": props})
 
         neo.close()
         return jsonify({"nodes": nodes, "links": links, "label_colors": label_colors})
